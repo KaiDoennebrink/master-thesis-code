@@ -142,8 +142,8 @@ class PTBXLDataLoader:
         # split the data
         self.X_test = self._samples[self._folds == 10]
         self.Y_test = self._ptb_xl_snomed_labels_encoded[self._folds == 10]
-        self.X_val = self._samples[self._folds == 9]
-        self.Y_val = self._ptb_xl_snomed_labels_encoded[self._folds == 9]
+        self.X_valid = self._samples[self._folds == 9]
+        self.Y_valid = self._ptb_xl_snomed_labels_encoded[self._folds == 9]
         self.X_train = self._samples[self._folds <= 8]
         self.Y_train_ptb_xl = self._ptb_xl_snomed_labels_encoded[self._folds <= 8]
         self.Y_train_12sl = self._12sl_snomed_labels_encoded[self._folds <= 8]
@@ -154,7 +154,7 @@ class PTBXLDataLoader:
         ss.fit(np.vstack(self.X_train).flatten()[:, np.newaxis].astype(float))
 
         self.X_train = self.apply_standardizer(self.X_train, ss)
-        self.X_val = self.apply_standardizer(self.X_val, ss)
+        self.X_valid = self.apply_standardizer(self.X_valid, ss)
         self.X_test = self.apply_standardizer(self.X_test, ss)
 
     def _filter_snomed_codes(self, codes_with_probs: list) -> set:

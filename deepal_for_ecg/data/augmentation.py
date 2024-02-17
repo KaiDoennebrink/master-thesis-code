@@ -71,7 +71,7 @@ def permutation(data: np.ndarray, num_segments: int = 20) -> np.ndarray:
     orig_shape = data.shape
     output_data = data.copy().reshape([orig_shape[0], num_segments, -1, orig_shape[-1]])
     rng = np.random.default_rng()
-    rng.shuffle(output_data)
+    rng.shuffle(output_data, axis=1)
     return output_data.reshape(orig_shape)
 
 

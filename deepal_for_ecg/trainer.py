@@ -6,21 +6,25 @@ from tensorflow import keras
 from tensorflow.keras.callbacks import TensorBoard
 from tqdm import tqdm
 
+from deepal_for_ecg.data.augmentation import random_crop
+
 
 class PTBXLTrainer:
     """Trains a neural network on the ptb-xl dataset."""
 
-    def __init__(self,
-                 model: keras.Model,
-                 model_name: str,
-                 num_labels: int,
-                 batch_size: int = 256,
-                 learning_rate: float = 1e-3,
-                 epochs: int = 50,
-                 weight_decay: float = 1e-2,
-                 keep_best_model: bool = True,
-                 model_base_dir: str = './models',
-                 log_base_dir: str = './logs'):
+    def __init__(
+            self,
+            model: keras.Model,
+            model_name: str,
+            num_labels: int,
+            batch_size: int = 256,
+            learning_rate: float = 1e-3,
+            epochs: int = 50,
+            weight_decay: float = 1e-2,
+            keep_best_model: bool = True,
+            model_base_dir: str = './models',
+            log_base_dir: str = './logs'
+    ):
         """Initializes a trainer."""
         self.model = model
         self.model_name = model_name
@@ -33,7 +37,7 @@ class PTBXLTrainer:
         self.model_base_dir = model_base_dir
         self.log_base_dir = log_base_dir
 
-    def fit(self):
+    def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset):
         """Trains the model on the PTB-XL dataset."""
         self._prepare()
 

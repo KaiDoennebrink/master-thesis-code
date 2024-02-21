@@ -1,86 +1,132 @@
+from dataclasses import dataclass, field
 from typing import Tuple
 
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
+from deepal_for_ecg.models.classification_heads import BasicClassificationHeadConfig, simple_multi_label_classification_head
+
+
+@dataclass
+class InceptionNetworkConfig:
+    """
+    Configuration class to build Inception networks.
+
+    Args:
+        input_shape: Shape of the input tensor.
+        num_classes: Number of classes to classify.
+        num_filters (int): The number of filters each convolution in the inception modules should use.
+        bottleneck_size (int): The number of filter that the bottleneck layer should use in the inception modules.
+        use_residual (bool): Whether to add residual connections between the inception blocks.
+        use_bottleneck (bool): Whether to use bottleneck layers in each inception module.
+        depth (int): The depth of the inception network which is specified by the number of inception modules used.
+            Should be divisible by three since each three inception modules a residual connection is added to the
+            network.
+        max_kernel_size (int): The maximum kernel size that should be used in the inception modules.
+        use_handcrafted_filters (bool): Whether the network should be use handcrafted filters in the first inception
+            module to detected typical time series pattern, i.e., positive trend, negative trend, and peaks
+        max_cf_length (int): The maximum number of custom filters length to use per typ (increase, decrease, peak)
+        with_classification_head (bool): Indicator whether a classification head should be added to the network.
+             If false, just the representation part of the network will be returned.
+        create_classification_head (callable): A function that can create the classification head from a
+            BasicClassificationHEadConfig object.
+    """
+    input_shape: Tuple[int, int] = (250, 12)
+    num_classes: int | None = 93
+    num_filters: int = 32
+    bottleneck_size: int = 32
+    use_residual: bool = True
+    use_bottleneck: bool = True
+    depth: int = 6
+    max_kernel_size: int = 40
+    use_handcrafted_filters: bool = False
+    max_cf_length: int = 6
+    with_classification_head: bool = True
+    create_classification_head: callable = simple_multi_label_classification_head
+    kernel_sizes: list[int] = field(init=False)
+    increasing_trend_kernels: list[int] = field(init=False)
+    decreasing_trend_kernels: list[int] = field(init=False)
+    peak_kernels: list[int] = field(init=False)
+
+    def __post_init__(self):
+        self._calculate_kernel_sizes()
+
+    def _calculate_kernel_sizes(self):
+        """
+        Calculates the kernel size used for convolutions in the inception modules.
+        """
+        self.kernel_sizes = [self.max_kernel_size // (2 ** i) for i in range(3)]
+        handcrafted_kernel_sizes = [2 ** i for i in range(1, self.max_cf_length + 1)]
+        self.increasing_trend_kernels = handcrafted_kernel_sizes
+        self.decreasing_trend_kernels = handcrafted_kernel_sizes
+        self.peak_kernels = handcrafted_kernel_sizes[1:]
+
 
 class InceptionNetworkBuilder:
     """Builder class for inception networks."""
 
-    def __init__(
-            self,
-            num_filters: int = 32,
-            bottleneck_size: int = 32,
-            use_residual: bool = True,
-            use_bottleneck: bool = True,
-            depth: int = 6,
-            max_kernel_size: int = 40,
-            use_handcrafted_filters: bool = False,
-            max_cf_length: int = 6
-    ):
+    def __init__(self):
         """
-        Create a builder for inception networks with the given parameters.
-
-        Args:
-            num_filters (int): The number of filters each convolution in the inception modules should use.
-            bottleneck_size (int): The number of filter that the bottleneck layer should use in the inception modules.
-            use_residual (bool): Whether to add residual connections between the inception blocks.
-            use_bottleneck (bool): Whether to use bottleneck layers in each inception module.
-            depth (int): The depth of the inception network which is specified by the number of inception modules used.
-                Should be divisible by three since each three inception modules a residual connection is added to the
-                network.
-            max_kernel_size (int): The maximum kernel size that should be used in the inception modules.
-            use_handcrafted_filters (bool): Whether the network should be use handcrafted filters in the first inception
-                module to detected typical time series pattern, i.e., positive trend, negative trend, and peaks
-            max_cf_length (int): The maximum number of custom filters length to use per typ (increase, decrease, peak)
+        Create a builder for inception networks.
         """
-        self.num_filters = num_filters
-        self.bottleneck_size = bottleneck_size
-        self.use_residual = use_residual
-        self.use_bottleneck = use_bottleneck
-        self.depth = depth
-        self._calculate_kernel_sizes(max_kernel_size)
-        self.use_handcrafted_filters = use_handcrafted_filters
-        self.max_cf_length = max_cf_length
-        self.increasing_trend_kernels = [2 ** i for i in range(1, self.max_cf_length + 1)]
-        self.decreasing_trend_kernels = [2 ** i for i in range(1, self.max_cf_length + 1)]
-        self.peak_kernels = [2 ** i for i in range(2, self.max_cf_length + 1)]
+        self._config = None
 
-    def build_model(self, input_shape: Tuple[int, int], num_classes: int, output_activation: str = "softmax") -> keras.Model:
+    def build_model(
+            self, config: InceptionNetworkConfig, representation_model: keras.Model | None = None
+    ) -> keras.Model:
         """
         Builds the inception network model for the input and number of classes.
 
         Args:
-            input_shape (Tuple[int, int]): The shape of the input to the network in the form (time steps, channels).
-            num_classes (int): The number of classes the classification head should have.
-            output_activation (str): The activation function that should be used for the output layer of the network.
-                For example, use "softmax" for single label classification and "sigmoid" for multilabel classification.
+            config (InceptionNetworkConfig): The configuration of the model that should be created.
+            representation_model: (keras.Model): An optional representation model to use to extract the features. If
+                specified, this representation model is used instead of creating a new one.
 
         Returns:
-            The inception network model.
+            The full inception network model as a composition of the representation part and the classification head or
+            just the representation part as a keras.Model.
         """
-        input_layer = keras.layers.Input(input_shape, name=f"Input")
+        self._config = config
 
-        x = input_layer
-        input_res = input_layer
+        input_layer = keras.layers.Input(self._config.input_shape, name=f"Input")
 
-        for d in range(self.depth):
+        # create the part of the network that extracts the features
+        if representation_model is None:
+            x = input_layer
+            input_res = input_layer
 
-            x = self._inception_module(x, d)
+            for d in range(self._config.depth):
 
-            if self.use_residual and d % 3 == 2:
-                x = self._shortcut_layer(input_res, x, d)
-                input_res = x
+                x = self._inception_module(x, d)
 
-        gap_layer = keras.layers.GlobalAveragePooling1D(name="GAP")(x)
+                if self._config.use_residual and d % 3 == 2:
+                    x = self._shortcut_layer(input_res, x, d)
+                    input_res = x
 
-        output_layer = keras.layers.Dense(num_classes, activation=output_activation,
-                                          name=f"Output_{output_activation}")(gap_layer)
+            tmp_representation_out = keras.layers.GlobalAveragePooling1D(name="GAP")(x)
+            representation_model = keras.Model(
+                inputs=input_layer,
+                outputs=tmp_representation_out,
+                name="Representation"
+            )
 
-        model = keras.models.Model(inputs=input_layer, outputs=output_layer)
+        # output of the feature extraction part
+        representation_out = representation_model(input_layer)
 
-        return model
+        if self._config.with_classification_head:
+            config = BasicClassificationHeadConfig(
+                num_input_units=representation_model.output_shape[-1],
+                num_output_units=self._config.num_classes
+            )
+            classification_head = self._config.create_classification_head(config)
+            output_layer = classification_head(representation_out)
+
+            # return the full inception network
+            return keras.Model(inputs=input_layer, outputs=output_layer, name="InceptionNetwork")
+        else:
+            # just return the feature extractor of the inception network
+            return representation_model
 
     def _hybrid_layer(
             self,
@@ -98,7 +144,7 @@ class InceptionNetworkBuilder:
         conv_list = []
 
         # for increasing detection filters
-        for kernel_size in self.increasing_trend_kernels:
+        for kernel_size in self._config.increasing_trend_kernels:
             # formula of increasing detection filter
             filter_ = np.ones(shape=(kernel_size, input_channels, 1))
             indices_ = np.arange(kernel_size)
@@ -110,7 +156,7 @@ class InceptionNetworkBuilder:
             conv_list.append(conv)
 
         # for decreasing detection filters
-        for kernel_size in self.decreasing_trend_kernels:
+        for kernel_size in self._config.decreasing_trend_kernels:
             # formula of decreasing detection filter
             filter_ = np.ones(shape=(kernel_size, input_channels, 1))  
             indices_ = np.arange(kernel_size)
@@ -122,7 +168,7 @@ class InceptionNetworkBuilder:
             conv_list.append(conv)
 
         # for peak detection filters
-        for kernel_size in self.peak_kernels:
+        for kernel_size in self._config.peak_kernels:
             # formula of peak detection filter
             filter_ = np.zeros(shape=(kernel_size + kernel_size // 2, input_channels, 1))
             xmesh = np.linspace(start=0, stop=1, num=kernel_size // 4 + 1)[1:].reshape((-1, 1, 1))
@@ -140,16 +186,18 @@ class InceptionNetworkBuilder:
                                        trainable=False, name=f"Hybrid_Peaks_{kernel_size}")(input_tensor)
             conv_list.append(conv)
 
-        hybrid_layer = keras.layers.Concatenate(axis=2)(conv_list)
-        hybrid_layer = keras.layers.Activation(activation="relu")(hybrid_layer)
+        hybrid_layer = keras.layers.Concatenate(axis=2, name="Hybrid_Concat")(conv_list)
+        hybrid_layer = keras.layers.Activation(activation="relu", name="Hybrid_Activation")(hybrid_layer)
 
         return hybrid_layer
 
-    def _inception_module(self,
-                          input_tensor: tf.Tensor,
-                          current_depth: int,
-                          stride: int = 1,
-                          activation: str = "linear") -> tf.Tensor:
+    def _inception_module(
+            self,
+            input_tensor: tf.Tensor,
+            current_depth: int,
+            stride: int = 1,
+            activation: str = "linear"
+    ) -> tf.Tensor:
         """
         Adds an inception module to the network.
 
@@ -167,16 +215,16 @@ class InceptionNetworkBuilder:
 
         if self._use_bottleneck(int(input_tensor.shape[-1])):
             input_inception = keras.layers.Conv1D(name=f"{inception_module_name_prefix}Bottleneck",
-                                                  filters=self.bottleneck_size, kernel_size=1, padding="same",
+                                                  filters=self._config.bottleneck_size, kernel_size=1, padding="same",
                                                   activation=activation, use_bias=False)(input_tensor)
         else:
             input_inception = input_tensor
 
         conv_list = []
 
-        for i, kernel_size in enumerate(self.kernel_sizes):
+        for i, kernel_size in enumerate(self._config.kernel_sizes):
             conv_list.append(keras.layers.Conv1D(name=f"{inception_module_name_prefix}Convolution{kernel_size}",
-                                                 filters=self.num_filters, kernel_size=kernel_size,
+                                                 filters=self._config.num_filters, kernel_size=kernel_size,
                                                  strides=stride, padding="same", activation=activation,
                                                  use_bias=False)(input_inception)
                              )
@@ -186,12 +234,13 @@ class InceptionNetworkBuilder:
 
         # TODO: Evaluate whether to just add the bottleneck layer if input channels > num_filters and input channels > 1
         conv_6 = keras.layers.Conv1D(name=f"{inception_module_name_prefix}MaxPool_Bottleneck",
-                                     filters=self.num_filters, kernel_size=1,
+                                     filters=self._config.num_filters, kernel_size=1,
                                      padding="same", activation=activation, use_bias=False)(max_pool_1)
 
         conv_list.append(conv_6)
 
-        if self.use_handcrafted_filters and current_depth == 0:
+        if self._config.use_handcrafted_filters and current_depth == 0:
+            print("add handcrafted filters")
             hybrid = self._hybrid_layer(input_tensor, int(input_tensor.shape[-1]))
             conv_list.append(hybrid)
 
@@ -200,10 +249,12 @@ class InceptionNetworkBuilder:
         x = keras.layers.Activation(name=f"{inception_module_name_prefix}Activation", activation="relu")(x)
         return x
 
-    def _shortcut_layer(self,
-                        residual_input_tensor: tf.Tensor,
-                        other_tensor: tf.Tensor,
-                        current_depth: int) -> tf.Tensor:
+    def _shortcut_layer(
+            self,
+            residual_input_tensor: tf.Tensor,
+            other_tensor: tf.Tensor,
+            current_depth: int
+    ) -> tf.Tensor:
         """
         Adds a shortcut layer to the network.
 
@@ -227,15 +278,6 @@ class InceptionNetworkBuilder:
         x = keras.layers.Activation("relu", name=f"{shortcut_layer_name_prefix}Activation")(x)
         return x
 
-    def _calculate_kernel_sizes(self, max_kernel_size: int):
-        """
-        Calculates based on the maximum kernel size the kernel sized used for convolutions in the inception modules.
-
-        Args:
-            max_kernel_size (int): The maximum kernel size of the convolution layers.
-        """
-        self.kernel_sizes = [max_kernel_size // (2 ** i) for i in range(3)]
-
     def _use_bottleneck(self, input_channels: int) -> bool:
         """
         Validates whether it is sensible to use a bottleneck layer. In addition to the original paper, a bottleneck
@@ -246,4 +288,4 @@ class InceptionNetworkBuilder:
         Returns:
             An indicator whether to use the bottleneck layer or not.
         """
-        return self.use_bottleneck and input_channels > self.bottleneck_size and input_channels > 1
+        return self._config.use_bottleneck and input_channels > self._config.bottleneck_size and input_channels > 1

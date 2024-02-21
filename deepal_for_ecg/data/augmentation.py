@@ -26,7 +26,7 @@ def generate_sliding_window(data: np.ndarray, window_size: int = 250, stride: in
     return tuple(sliding_window_array)
 
 
-def noise_addition(data: np.ndarray, signal_to_noise_ratio: int = 15) -> np.ndarray:
+def noise_addition(data: np.ndarray, signal_to_noise_ratio: int = 15, output_type: np.dtype = np.float32) -> np.ndarray:
     """
     Adds noise to the signal as described by Sarkar and Etemad (2022).
     https://code.engineering.queensu.ca/pritam/SSL-ECG/-/blob/master/implementation/signal_transformation_task.py?ref_type=heads
@@ -44,38 +44,47 @@ def noise_addition(data: np.ndarray, signal_to_noise_ratio: int = 15) -> np.ndar
     rng = np.random.default_rng()
     noise = rng.normal(0, 1, data.shape)
     noise = noise * np.sqrt(variance)[:, np.newaxis, :]
+
     # add noise to signal
-    return data + noise
+    output = data + noise
+    return output.astype(output_type)
 
 
-def scaling(data: np.ndarray, scaling_factor: float = 0.9) -> np.ndarray:
+def scaling(data: np.ndarray, scaling_factor: float = 0.9, output_type: np.dtype = np.float32) -> np.ndarray:
     """Scales the original data with the given scaling factor."""
-    return data * scaling_factor
+    output = data * scaling_factor
+    return output.astype(output_type)
 
 
-def negation(data: np.ndarray) -> np.ndarray:
+def negation(data: np.ndarray, output_type: np.dtype = np.float32) -> np.ndarray:
     """Negates the original data."""
-    return data * (-1)
+    output = data * (-1)
+    return output.astype(output_type)
 
 
-def temporal_inversion(data: np.ndarray) -> np.ndarray:
+def temporal_inversion(data: np.ndarray, output_type: np.dtype = np.float32) -> np.ndarray:
     """Inverts the original data on its time axis."""
-    return np.flip(data, axis=1)
+    output = np.flip(data, axis=1)
+    return output.astype(output_type)
 
 
-def permutation(data: np.ndarray, num_segments: int = 20) -> np.ndarray:
+def permutation(data: np.ndarray, num_segments: int = 20, output_type: np.dtype = np.float32) -> np.ndarray:
     """
     Transforms the original data by dividing it into segments and randomly perturbing the temporal location
     of each segment.
     """
     orig_shape = data.shape
-    output_data = data.copy().reshape([orig_shape[0], num_segments, -1, orig_shape[-1]])
+    output_data = data.copy().reshape([orig_shape[0], num_segments, -1, orig_shape[-1]]).astype(output_type)
     rng = np.random.default_rng()
     rng.shuffle(output_data, axis=1)
     return output_data.reshape(orig_shape)
 
 
-def time_warping(data: np.ndarray, num_segments: int = 9, stretch_factor: float = 1.05) -> np.ndarray:
+def time_warping(
+        data: np.ndarray, num_segments: int = 9,
+        stretch_factor: float = 1.05,
+        output_type: np.dtype = np.float32
+) -> np.ndarray:
     """Squeezes or stretches randomly selected segments of the original data along the time axis."""
     num_samples, num_time_steps, num_channels = data.shape
     segment_time = num_time_steps // num_segments
@@ -114,4 +123,4 @@ def time_warping(data: np.ndarray, num_segments: int = 9, stretch_factor: float 
         padding_before = (time_warped_data.shape[1] - num_time_steps) // 2
         padding_after = time_warped_data.shape[1] - num_time_steps + padding_before
         time_warped_data = np.pad(time_warped_data, ((0, 0), (padding_before, padding_after), (0, 0)), 'edge')
-    return time_warped_data
+    return time_warped_data.astype(output_type)

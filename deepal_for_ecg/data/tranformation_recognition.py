@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 from deepal_for_ecg.data.augmentation import noise_addition, scaling, negation, temporal_inversion, permutation, \
-    time_warping
+    time_warping, generate_sliding_window
 
 
 class Transformation(Enum):
@@ -28,21 +28,28 @@ class TransformationRecognitionDataModule:
     """
     The data module for the transformation recognition pretext task.
     It provides the training, validation and test data to train a model in a self-supervised way.
-    As an input to this module, the training ECG signals of the PTB-XL dataset are used.
+    The module either can load prepared datasets from disk or can create datasets from scratch.
+    If a dataset should be created from scratch, it is recommended to just use the training data as input.
     """
+    NUM_TRANSFORMATIONS = 7
 
     def __init__(
             self,
             saved_data_base_dir: Path = Path("../data/saved/transformation_recognition"),
-            seed: int = 304
+            seed: int = 304,
+            window_size: int = 250,
+            stride: int = 125
     ):
         self._saved_data_base_dir = saved_data_base_dir
         self._rng = np.random.default_rng(seed)
         self._orig_data = None
+        self._shuffle_buffer_size = 97552
 
         self._validation_dataset = None
         self._test_dataset = None
         self._train_dataset = None
+        self._window_size = window_size
+        self._stride = stride
 
     @property
     def validation_dataset(self) -> tf.data.Dataset:
@@ -66,7 +73,19 @@ class TransformationRecognitionDataModule:
         return self._train_dataset
 
     def generate_and_split_data(self, signal_data: np.ndarray, from_checkpoint: bool = True):
+        """
+        Splits the given signal data into training, test, and validation sets.
+        These sets are stored on disk and can be used to construct the tf.data.Dataset objects.
+
+        Args:
+            signal_data (np.ndarray): The signal data that should be split.
+            from_checkpoint (bool): An indicator whether to use the last checkpoint, e.g., saved splits or
+                transformations, in the process.
+        """
         self._orig_data = signal_data
+        # calculate the buffer size for later use
+        self._shuffle_buffer_size = len(self._orig_data) * self.NUM_TRANSFORMATIONS
+
         train_idx, valid_idx, test_idx = self._get_splits(from_checkpoint)
         noisy_data, scaled_data, negation_data, temporal_inversed_data, permuted_data, time_warped_data = self._generate_transformations(from_checkpoint)
 
@@ -82,23 +101,30 @@ class TransformationRecognitionDataModule:
         # reset class variable
         self._orig_data = None
 
-    def prepare_datasets(self):
+    def prepare_datasets(self, shuffle_train_data: bool = True, sliding_windows_for_test_and_val_data: bool = False):
         """
         Prepares the test, validation and training datasets.
         Therefore, all transformations for each split are concatenated together and saved on disk again.
-        """
-        self._prepare_dataset("test")
-        self._prepare_dataset("validation")
-        self._prepare_dataset("train")
 
-    def _prepare_dataset(self, name: str):
+        Args:
+            shuffle_train_data (bool): An indicator whether to shuffle the training datasets before writing it to disk.
+            sliding_windows_for_test_and_val_data (bool): An indicator whether to create sliding window datasets from
+                the validation and test datasets.
+        """
+        self._prepare_dataset("test", with_sliding_windows=sliding_windows_for_test_and_val_data, with_shuffle=False)
+        self._prepare_dataset("validation", with_sliding_windows=sliding_windows_for_test_and_val_data, with_shuffle=False)
+        self._prepare_dataset("train", with_sliding_windows=False, with_shuffle=shuffle_train_data)
+
+    def _prepare_dataset(self, name: str, with_sliding_windows: bool = False, with_shuffle: bool = True):
         """
         Prepares a single dataset by iterating over all saved transformation data for the given split.
         It uses the CPU because otherwise the dataset is maybe too big to fit into the GPU memory.
         The resulting tf.data.Dataset is stored on disc.
 
         Args:
-            name: The name of the dataset to prepare, i.e., "test", "validation", "train".
+            name (str): The name of the dataset to prepare, i.e., "test", "validation", "train".
+            with_sliding_windows (bool): An indicator whether to generate sliding windows from the data set.
+            with_shuffle (bool): An indicator whether to shuffle the dataset before writing it to disk.
         """
         # use CPU for this work
         with tf.device("/cpu:0"):
@@ -107,10 +133,16 @@ class TransformationRecognitionDataModule:
             for transformation in Transformation:
                 data = np.load(Path(base_dir, f"{transformation.data_name}.npy"))
                 label = np.array([transformation.one_hot_label] * data.shape[0])
+                if with_sliding_windows:
+                    data = generate_sliding_window(data, self._window_size, self._stride)
                 if ds is not None:
                     ds = ds.concatenate(tf.data.Dataset.from_tensor_slices((data, label)))
                 else:
                     ds = tf.data.Dataset.from_tensor_slices((data, label))
+
+            if with_shuffle:
+                # shuffles the whole dataset at once so that later smaller buffer sizes can be used
+                ds = ds.shuffle(buffer_size=self._shuffle_buffer_size)
 
             # save dataset to disk
             dataset_dir = Path(self._saved_data_base_dir, "datasets")

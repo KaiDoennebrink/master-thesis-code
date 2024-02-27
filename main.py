@@ -6,7 +6,13 @@ from tensorflow import keras
 
 from deepal_for_ecg.data.load import PTBXLDataLoader
 from deepal_for_ecg.data.tranformation_recognition import TransformationRecognitionDataModule
+from deepal_for_ecg.models.classification_heads import simple_classification_head
+from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
+from deepal_for_ecg.train.transformation_recognition import TransformationRecognitionTrainer
+from deepal_for_ecg.util import improve_gpu_capacity
+
+improve_gpu_capacity()
 
 app = typer.Typer()
 
@@ -14,6 +20,31 @@ app = typer.Typer()
 @app.command()
 def hello(name: str):
     print(f"Hello {name}")
+
+
+@app.command()
+def train_pretext_model(base_name: str = "PretextInception", num_models: int = 1):
+    """
+    Trains models on the pretext tasks.
+
+    Args:
+        base_name (str): The base name of the model that is used to store it.
+        num_models (int): The number of models that should be trained on the pretext tasks (default = 1).
+    """
+    # load data
+    data_module = TransformationRecognitionDataModule()
+
+    # prepare the model builder
+    config = InceptionNetworkConfig(create_classification_head=simple_classification_head,
+                                    num_classes=data_module.NUM_TRANSFORMATIONS, input_shape=(1000, 12))
+    builder = InceptionNetworkBuilder()
+
+    # train the models
+    for i in range(num_models):
+        model = builder.build_model(config)
+        trainer = TransformationRecognitionTrainer(model=model, model_name=f"{base_name}{i}")
+        trainer.fit(data_module.train_dataset, data_module.validation_dataset)
+
 
 
 @app.command()

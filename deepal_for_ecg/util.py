@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import numpy as np
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
@@ -29,3 +32,9 @@ def improve_gpu_capacity(
             tf.config.set_logical_device_configuration(gpus[0], [tf.config.LogicalDeviceConfiguration(memory_limit=memory_limit)])
         elif use_dynamic_growth:
             tf.config.experimental.set_memory_growth(gpus[0], True)
+
+
+def save_numpy(array: np.ndarray, path_to_file: Path):
+    """Saves a numpy array to a file."""
+    with open(path_to_file, "wb") as f:
+        np.save(f, array)

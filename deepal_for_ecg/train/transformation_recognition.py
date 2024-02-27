@@ -1,41 +1,19 @@
 import tensorflow as tf
 from tensorflow import keras
 
-from deepal_for_ecg.train.tsc import TimeSeriesClassificationTrainer
+from deepal_for_ecg.train.base import BaseTrainer
 
 
-class TransformationRecognitionTrainer(TimeSeriesClassificationTrainer):
+class TransformationRecognitionTrainer(BaseTrainer):
     """The trainer class for training a neural network on a pretext task to recognize time series transformations."""
 
     def __init__(self, model: keras.Model, model_name: str, batch_size: int = 128, epochs: int = 50,
                  keep_best_model: bool = True, model_base_dir: str = "../models", log_base_dir: str = "../logs",
-                 crop_length: int = 250, learning_rate: float = 1e-3, weight_decay: float = 1e-2):
+                 learning_rate: float = 1e-3, weight_decay: float = 1e-2):
         """Initializes a trainer."""
-        super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir,
-                         crop_length)
+        super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir)
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self._shuffle_buffer_size = 1000
-
-    @tf.function
-    def _validation_step(self, data_batch, label_batch):
-        """
-        Standard validation step for a classification model.
-        Can be overridden by subclasses to have a custom validation step.
-        """
-        logits = self.model(data_batch, training=False)
-        loss = self._loss_object(label_batch, logits)
-
-        # update the measures
-        self._update_validation_metrics(loss, label_batch, logits)
-
-    def _get_training_dataset(self, dataset: tf.data.Dataset) -> tf.data.Dataset:
-        """
-        Returns a random crop from each sample in the dataset.
-        """
-        # do not use buffer_size=dataset.cardinality() here to prevent the loading of the full dataset into memory
-        # cropped_dataset = dataset.map(lambda x, y: (random_crop(x, self.crop_length), y))
-        return dataset.shuffle(buffer_size=self._shuffle_buffer_size)
 
     def _initialize_metrics(self):
         self._train_loss = keras.metrics.Mean(name="train_loss")

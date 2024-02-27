@@ -32,7 +32,7 @@ def simple_multi_label_classification_head(config: BasicClassificationHeadConfig
 
 def simple_classification_head(config: BasicClassificationHeadConfig):
     """
-    Creates a simple classification head with two dense layers and a softmax output layer.
+    Creates a simple classification head with two dense layers and a linear output layer.
 
     Args:
         config (BasicClassificationHeadConfig): The configuration of the classification head.
@@ -42,6 +42,6 @@ def simple_classification_head(config: BasicClassificationHeadConfig):
     input_layer = keras.layers.Input([config.num_input_units], name=f"Classification_Input")
     x = keras.layers.Dense(128, activation="relu", name=f"Classification_Dense_1")(input_layer)
     x = keras.layers.Dense(128, activation="relu", name=f"Classification_Dense_2")(input_layer)
-    output_layer = keras.layers.Dense(config.num_output_units, activation="softmax", name=f"Classification_Output")(x)
+    output_layer = keras.layers.Dense(config.num_output_units, name=f"Classification_Output")(x)
 
     return keras.Model(inputs=input_layer, outputs=output_layer, name="Simple_Multi_Label_Classification_Head")

@@ -46,6 +46,15 @@ def train_pretext_model(base_name: str = "PretextInception", num_models: int = 1
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
 
+@app.command()
+def prepare_data_ptbxl():
+    """
+    Loads, preprocesses, and saves the PTB-XL dataset.
+    """
+    data_loader = PTBXLDataLoader()
+    data_loader.load_data()
+    data_loader.save_data()
+
 
 @app.command()
 def prepare_data_for_pretext_task():

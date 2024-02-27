@@ -35,7 +35,7 @@ class TransformationRecognitionDataModule:
 
     def __init__(
             self,
-            saved_data_base_dir: Path = Path("../data/saved/transformation_recognition"),
+            saved_data_base_dir: Path = Path("./data/saved/transformation_recognition"),
             seed: int = 304,
             window_size: int = 250,
             stride: int = 125

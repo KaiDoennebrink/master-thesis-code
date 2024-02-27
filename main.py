@@ -5,6 +5,7 @@ import typer
 from tensorflow import keras
 
 from deepal_for_ecg.data.load import PTBXLDataLoader
+from deepal_for_ecg.data.tranformation_recognition import TransformationRecognitionDataModule
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
 
 app = typer.Typer()
@@ -13,6 +14,24 @@ app = typer.Typer()
 @app.command()
 def hello(name: str):
     print(f"Hello {name}")
+
+
+@app.command()
+def prepare_data_for_pretext_task():
+    """
+    Prepares the losses for the PT4AL query strategy for the given pre-trained model.
+    """
+    # load saved PTB-XL data
+    loader = PTBXLDataLoader(load_saved_data=True)
+    loader.load_data()
+    signal_data = loader.X_train.astype(np.float32)
+
+    # delete the loader to free up memory
+    del loader
+
+    data_module = TransformationRecognitionDataModule()
+    data_module.generate_and_split_data(signal_data)
+    data_module.prepare_datasets()
 
 
 @app.command()

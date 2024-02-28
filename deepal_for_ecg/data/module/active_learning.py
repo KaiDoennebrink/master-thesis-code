@@ -10,6 +10,7 @@ class PTBXLActiveLearningDataModule:
     It provides the labeled and unlabeled data for the active learning process, keeps track of the queried instances,
     and can augment the samples.
     """
+    NUM_CLASSES = 93
 
     def __init__(
             self,

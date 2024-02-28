@@ -6,6 +6,7 @@ from tensorflow import keras
 
 from deepal_for_ecg.data.loader.icbeb import ICBEBDataLoader
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
+from deepal_for_ecg.data.module.icbeb import ICBEBDataModule
 from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
@@ -55,11 +56,15 @@ def prepare_data_ptbxl():
 @app.command()
 def prepare_data_icbeb():
     """
-    Loads, preprocesses, and saves the ICBEB 2018 dataset.
+    Loads, preprocesses, and saves the ICBEB 2018 dataset with the data loader. Afterward, the train, test, and
+    validation datasets are prepared with the data module.
     """
     data_loader = ICBEBDataLoader()
     data_loader.load_data()
     data_loader.save_data()
+
+    data_module = ICBEBDataModule()
+    data_module.prepare_datasets(data_loader.X_train, data_loader.X_val, data_loader.Y_train, data_loader.Y_val)
 
 
 @app.command()

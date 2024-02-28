@@ -1,6 +1,6 @@
 import ast
-import pickle
 from pathlib import Path
+from typing import Dict, Any
 
 import numpy as np
 import pandas as pd
@@ -8,26 +8,19 @@ from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 from tqdm import tqdm
 import wfdb
 
+from deepal_for_ecg.data.loader.base import BaseDataLoader
+from deepal_for_ecg.data.loader.util import apply_standardizer
 
-class PTBXLDataLoader:
+
+class PTBXLDataLoader(BaseDataLoader):
     """Loads and preprocesses the PTB-XL and PTB-XL+ data to train, validate and test a neural network."""
 
-    def __init__(self,
-                 load_saved_data: bool = False,  # TODO: Change to true
-                 saved_data_base_dir: str | Path = Path("./data/saved"),
-                 raw_ptb_xl_data_dir: str | Path = Path("./data/raw/ptb_xl_1.0.3"),
-                 raw_ptb_xl_plus_data_dir: str | Path = Path("./data/raw/ptb_xl_plus_1.0.1")):
-        self._load_saved_data = load_saved_data
-        self._saved_data_base_dir = Path(saved_data_base_dir)
-        self._saved_data_pickle_file_name = "loaded_and_preprocessed_data.pkl"
-        self._raw_ptb_xl_data_dir = Path(raw_ptb_xl_data_dir)
-        self._raw_ptb_xl_plus_data_dir = Path(raw_ptb_xl_plus_data_dir)
+    def __init__(self, load_saved_data: bool = False, saved_data_base_dir: str | Path = Path("./data/saved/ptbxl"),
+                 raw_data_base_dir: str | Path = Path("./data/raw")):
+        super().__init__(load_saved_data, saved_data_base_dir, raw_data_base_dir)
+        self._raw_ptb_xl_data_dir = Path(self._raw_data_base_dir, "ptb_xl_1.0.3")
+        self._raw_ptb_xl_plus_data_dir = Path(self._raw_data_base_dir, "ptb_xl_plus_1.0.1")
 
-        self.reset()
-
-    def reset(self):
-        """Resets the loaded data."""
-        # reset the main fields
         self.X_train = None
         self.Y_train_ptb_xl = None
         self.Y_train_12sl = None
@@ -36,7 +29,7 @@ class PTBXLDataLoader:
         self.X_test = None
         self.Y_test = None
 
-        # reset the helper fields
+        # internal fields
         self._relevant_snomed_ct_codes = None
         self._samples = None
         self._folds = None
@@ -46,30 +39,28 @@ class PTBXLDataLoader:
         self._12sl_snomed_labels_encoded = None
         self._mlb = None
 
-    def load_data(self):
-        """Loads the PTB-XL dataset and preprocesses it."""
-        if self._load_saved_data and Path(self._saved_data_base_dir, self._saved_data_pickle_file_name).exists():
-            with open(Path(self._saved_data_base_dir, self._saved_data_pickle_file_name), "rb") as pickle_file:
-                data_dict = pickle.load(pickle_file)
-                self.X_train = data_dict["X_train"]
-                self.Y_train_ptb_xl = data_dict["Y_train_ptb_xl"]
-                self.Y_train_12sl = data_dict["Y_train_12sl"]
-                self.X_valid = data_dict["X_valid"]
-                self.Y_valid = data_dict["Y_valid"]
-                self.X_test = data_dict["X_test"]
-                self.Y_test = data_dict["Y_test"]
-                self._mlb = data_dict["mlb"]
-        else:
-            self._init_relevant_snomed_ct_codes()
-            self._load_samples()
-            self._load_labels()
-            self._split_data()
-            self._preprocess_signals()
-            pass
+    def _internal_loading_and_processing(self):
+        """Load and process the data."""
+        self._init_relevant_snomed_ct_codes()
+        self._load_samples()
+        self._load_labels()
+        self._split_data()
+        self._preprocess_signals()
 
-    def save_data(self):
-        """Saves the data."""
-        data_dict = {
+    def _set_data(self, data: Dict[str, Any]):
+        """Sets the loaded and processed data."""
+        self.X_train = data["X_train"]
+        self.Y_train_ptb_xl = data["Y_train_ptb_xl"]
+        self.Y_train_12sl = data["Y_train_12sl"]
+        self.X_valid = data["X_valid"]
+        self.Y_valid = data["Y_valid"]
+        self.X_test = data["X_test"]
+        self.Y_test = data["Y_test"]
+        self._mlb = data["mlb"]
+
+    def _get_data(self) -> Dict[str, Any]:
+        """Returns the loaded and processed data."""
+        return {
             'X_train': self.X_train,
             'Y_train_ptb_xl': self.Y_train_ptb_xl,
             'Y_train_12sl': self.Y_train_12sl,
@@ -79,8 +70,6 @@ class PTBXLDataLoader:
             'Y_test': self.Y_test,
             'mlb': self._mlb
         }
-        with open(Path(self._saved_data_base_dir, self._saved_data_pickle_file_name), 'wb') as data_file:
-            pickle.dump(data_dict, data_file)
 
     def _init_relevant_snomed_ct_codes(self):
         """
@@ -153,19 +142,11 @@ class PTBXLDataLoader:
         ss = StandardScaler()
         ss.fit(np.vstack(self.X_train).flatten()[:, np.newaxis].astype(float))
 
-        self.X_train = self.apply_standardizer(self.X_train, ss)
-        self.X_valid = self.apply_standardizer(self.X_valid, ss)
-        self.X_test = self.apply_standardizer(self.X_test, ss)
+        self.X_train = apply_standardizer(self.X_train, ss)
+        self.X_valid = apply_standardizer(self.X_valid, ss)
+        self.X_test = apply_standardizer(self.X_test, ss)
 
     def _filter_snomed_codes(self, codes_with_probs: list) -> set:
         """Filters the given SNOMED CT codes with probabilities and just keeps the relevant codes."""
         all_codes = set([code_with_prob[0] for code_with_prob in codes_with_probs])
         return self._relevant_snomed_ct_codes.intersection(all_codes)
-
-    @staticmethod
-    def apply_standardizer(data, standard_scaler: StandardScaler):
-        x_tmp = []
-        for x in data:
-            x_shape = x.shape
-            x_tmp.append(standard_scaler.transform(x.flatten()[:, np.newaxis]).reshape(x_shape))
-        return np.array(x_tmp)

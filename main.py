@@ -4,7 +4,8 @@ import numpy as np
 import typer
 from tensorflow import keras
 
-from deepal_for_ecg.data.load import PTBXLDataLoader
+from deepal_for_ecg.data.loader.icbeb import ICBEBDataLoader
+from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.tranformation_recognition import TransformationRecognitionDataModule
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
@@ -47,6 +48,16 @@ def prepare_data_ptbxl():
     Loads, preprocesses, and saves the PTB-XL dataset.
     """
     data_loader = PTBXLDataLoader()
+    data_loader.load_data()
+    data_loader.save_data()
+
+
+@app.command()
+def prepare_data_icbeb():
+    """
+    Loads, preprocesses, and saves the ICBEB 2018 dataset.
+    """
+    data_loader = ICBEBDataLoader()
     data_loader.load_data()
     data_loader.save_data()
 

@@ -19,8 +19,8 @@ class BaseTrainer(abc.ABC):
             batch_size: int = 256,
             epochs: int = 50,
             keep_best_model: bool = True,
-            model_base_dir: str = "../models",
-            log_base_dir: str = "../logs"
+            model_base_dir: str = "./models",
+            log_base_dir: str = "./logs"
     ):
         self.model = model
         self.model_name = model_name

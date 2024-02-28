@@ -8,7 +8,7 @@ class TransformationRecognitionTrainer(BaseTrainer):
     """The trainer class for training a neural network on a pretext task to recognize time series transformations."""
 
     def __init__(self, model: keras.Model, model_name: str, batch_size: int = 128, epochs: int = 50,
-                 keep_best_model: bool = True, model_base_dir: str = "../models", log_base_dir: str = "../logs",
+                 keep_best_model: bool = True, model_base_dir: str = "./models", log_base_dir: str = "./logs",
                  learning_rate: float = 1e-3, weight_decay: float = 1e-2):
         """Initializes a trainer."""
         super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir)

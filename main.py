@@ -6,7 +6,7 @@ from tensorflow import keras
 
 from deepal_for_ecg.data.loader.icbeb import ICBEBDataLoader
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
-from deepal_for_ecg.data.tranformation_recognition import TransformationRecognitionDataModule
+from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy

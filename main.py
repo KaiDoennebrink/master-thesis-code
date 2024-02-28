@@ -18,11 +18,6 @@ app = typer.Typer()
 
 
 @app.command()
-def hello(name: str):
-    print(f"Hello {name}")
-
-
-@app.command()
 def train_pretext_model(base_name: str = "PretextInception", num_models: int = 1):
     """
     Trains models on the pretext tasks.
@@ -42,7 +37,7 @@ def train_pretext_model(base_name: str = "PretextInception", num_models: int = 1
     # train the models
     for i in range(num_models):
         model = builder.build_model(config)
-        trainer = TransformationRecognitionTrainer(model=model, model_name=f"{base_name}{i}")
+        trainer = TransformationRecognitionTrainer(model=model, model_name=f"{base_name}{i+1}")
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
 

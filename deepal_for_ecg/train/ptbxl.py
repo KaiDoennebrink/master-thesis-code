@@ -9,7 +9,7 @@ class PTBXLTrainer(BaseTrainer):
     """Trains a neural network on the ptb-xl dataset."""
 
     def __init__(self, model: keras.Model, model_name: str, num_labels: int, batch_size: int = 256, epochs: int = 50,
-                 keep_best_model: bool = True, model_base_dir: str = "../models", log_base_dir: str = "../logs",
+                 keep_best_model: bool = True, model_base_dir: str = "./models", log_base_dir: str = "./logs",
                  crop_length: int = 250, learning_rate: float = 1e-3, weight_decay: float = 1e-2):
         """Initializes a trainer."""
         super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir)

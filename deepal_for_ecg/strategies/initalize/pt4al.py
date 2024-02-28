@@ -1,12 +1,12 @@
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Set
 
 import numpy as np
 import numpy.random
 from tensorflow import keras
 from tqdm import tqdm
 
-from deepal_for_ecg.data.tranformation_recognition import Transformation
+from deepal_for_ecg.data.module.tranformation_recognition import Transformation
 from deepal_for_ecg.util import save_numpy
 
 
@@ -64,7 +64,7 @@ class PreTextLossInitQueryStrategy:
         split_indices = [samples_per_split * i for i in range(1, num_of_al_batches)]
         self._loss_indices_batches = np.split(self._loss_indices, split_indices)
 
-    def select_samples(self, num_of_samples: int, previous_round_model: keras.Model = None, current_batch: int = -1) -> np.ndarray:
+    def select_samples(self, num_of_samples: int, previous_round_model: keras.Model = None, current_batch: int = -1) -> Set[int]:
         """
         Select samples from the current batch and return the indices of the samples.
 
@@ -89,11 +89,11 @@ class PreTextLossInitQueryStrategy:
         # TODO: If query strategy should be used further implement appropriate uncertainty query strategy
         return self._select_uniformly_from_batch(num_of_samples, local_batch)
 
-    def _select_uniformly_from_batch(self, num_of_samples: int, current_batch: int) -> np.ndarray:
+    def _select_uniformly_from_batch(self, num_of_samples: int, current_batch: int) -> Set[int]:
         """Selects samples uniformly from the current batch of samples."""
         batch = self._loss_indices_batches[current_batch]
         rng = numpy.random.default_rng()
-        return rng.choice(batch, num_of_samples, replace=False)
+        return set(rng.choice(batch, num_of_samples, replace=False))
 
     def _calculate_losses(self, training_samples: np.ndarray) -> np.ndarray:
         """ Calculates the losses for all training samples."""

@@ -5,8 +5,12 @@ from deepal_for_ecg.data.augmentation import random_crop
 from deepal_for_ecg.train.base import BaseTrainer
 
 
-class PTBXLTrainer(BaseTrainer):
-    """Trains a neural network on the ptb-xl dataset."""
+class MultiLabelTimeSeriesTrainer(BaseTrainer):
+    """
+    Base class for training multi-label classification models based on time series data.
+
+    The training data set is augmented during training. Furthermore, the validation is based on sliding windows.
+    """
 
     def __init__(self, model: keras.Model, model_name: str, num_labels: int, batch_size: int = 256, epochs: int = 50,
                  keep_best_model: bool = True, model_base_dir: str = "./models", log_base_dir: str = "./logs",

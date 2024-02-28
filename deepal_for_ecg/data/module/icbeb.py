@@ -12,6 +12,8 @@ class ICBEBDataModule:
     The data module for the ICBEB 2018 dataset.
     """
 
+    NUM_CLASSES = 9
+
     def __init__(self, saved_datasets_base_dir: Path = Path("./data/saved/icbeb/datasets"),):
         """
         Initializes the data module. Since the ICBEB 2018 challenge just offers a training set and a small validation

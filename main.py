@@ -161,7 +161,7 @@ def prepare_loss_for_pt4al(model_name: str):
     # load the model
     b_model = keras.models.load_model(f"./models/{model_name}/best_model.keras")
     # prepare the losses
-    init_strategy = PreTextLossInitQueryStrategy(b_model, Path(f"./data/loss_storage/{model_name}"))
+    init_strategy = PreTextLossInitQueryStrategy(b_model, model_name)
     init_strategy.prepare(signal_data)
 
 

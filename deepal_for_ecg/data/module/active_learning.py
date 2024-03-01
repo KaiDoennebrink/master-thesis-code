@@ -91,3 +91,11 @@ class PTBXLActiveLearningDataModule:
         )
 
         return train_dataset_ptb_xl.concatenate(train_dataset_12sl)
+
+    @property
+    def unlabeled_dataset(self) -> tf.data.Dataset:
+        """
+        Constructs and returns the current unlabeled dataset without data augmentations.
+        """
+        indices = list(self._unlabeled_indices)
+        return tf.data.Dataset.from_tensor_slices((self._train_samples[indices]))

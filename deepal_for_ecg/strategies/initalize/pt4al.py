@@ -23,10 +23,10 @@ class PreTextLossInitQueryStrategy:
     data and these needs to be distinguished from each other and the original signal.
     """
 
-    def __init__(self, pretrained_model: keras.Model, loss_storage_dir: Path = Path("./data/loss_storage"),
+    def __init__(self, pretrained_model: keras.Model, name: str, loss_storage_dir: Path = Path("./data/loss_storage"),
                  transformation_dir: Path = Path("./data/saved/transformation_recognition/transform")):
         self._pretrained_model = pretrained_model
-        self._loss_storage_dir = loss_storage_dir
+        self._loss_storage_dir = Path(loss_storage_dir, name)
         self._loss_storage_dir.mkdir(parents=True, exist_ok=True)
         self._transformation_dir = transformation_dir
 

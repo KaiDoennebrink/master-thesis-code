@@ -9,6 +9,7 @@ from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.data.module.icbeb import ICBEBDataModule
 from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
+from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategyExperiment
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
@@ -19,6 +20,13 @@ from deepal_for_ecg.util import improve_gpu_capacity
 improve_gpu_capacity()
 
 app = typer.Typer()
+
+
+@app.command()
+def experiment_init_strategy(runs_per_strategy: int = 5):
+    """Executes the initialization strategy experiment. The results are saved in a csv-file."""
+    experiment = InitializationStrategyExperiment(runs_per_strategy=runs_per_strategy)
+    experiment.run()
 
 
 @app.command()

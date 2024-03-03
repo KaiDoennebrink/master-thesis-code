@@ -27,11 +27,14 @@ class BaseTrainer(abc.ABC):
         self.epochs = epochs
         self.keep_best_model = keep_best_model
         self._best_main_metric_result = -1.
+        self._best_epoch = -1
         self.model_base_dir = model_base_dir
         self.log_base_dir = log_base_dir
         self._loss_object = None
         self._optimizer = None
         self._shuffle_buffer_size = 1000
+        self._experiment_name = None
+        self._early_stopping_patience = 25
 
     def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset):
         """Trains the model on the given dataset."""
@@ -54,8 +57,32 @@ class BaseTrainer(abc.ABC):
                 self._validation_step(validation_samples, validation_labels)
             self._log_validation_metrics(epoch)
 
-            self._save_best_model()
+            new_best = self._save_best_model()
             self._print_metrics()
+
+            if new_best:
+                self._best_epoch = epoch
+
+            # stop the training if there was no improvement for a too long time
+            if (epoch - self._best_epoch) == self._early_stopping_patience:
+                print(f"Early stopping after epoch {epoch} - last improvement was in epoch {self._best_epoch}")
+                break
+
+    def get_model(self, best: bool = False) -> tf.keras.Model:
+        """Returns either the current or the best model."""
+        return keras.models.load_model(Path(self.model_base_dir, self.model_name, "best_model.keras")) if best else self.model
+
+    @property
+    def best_epoch(self) -> int:
+        return self._best_epoch
+
+    @property
+    def experiment_name(self):
+        return self._experiment_name
+
+    @experiment_name.setter
+    def experiment_name(self, value):
+        self._experiment_name = value
 
     @tf.function
     def _training_step(self, data_batch, label_batch):
@@ -91,12 +118,14 @@ class BaseTrainer(abc.ABC):
         # update the measures
         self._update_validation_metrics(loss, label_batch, predictions)
 
-    def _save_best_model(self):
+    def _save_best_model(self) -> bool:
         """Saves the model if the current validation AUC is the currently best one."""
         if self.keep_best_model and self._get_main_validation_metric_result() >= self._best_main_metric_result:
             self._best_main_metric_result = self._get_main_validation_metric_result()
             print(f"Saving new best model with main validation metric: {self._best_main_metric_result}")
             self.model.save(Path(self.model_base_dir, self.model_name, "best_model.keras"))
+            return True
+        return False
 
     def _prepare(self):
         """Prepares the training process."""
@@ -111,9 +140,10 @@ class BaseTrainer(abc.ABC):
     def _initialize_log_writer(self):
         """Initializes the log writer used for the current run."""
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        self._train_log_dir = str(Path(self.log_base_dir, "gradient_tape", current_time, "train"))
-        self._validation_log_dir = str(Path(self.log_base_dir, "gradient_tape", current_time, "validation"))
-        self._graph_log_dir = str(Path(self.log_base_dir, "func", current_time))
+        dir_name = f"{self._experiment_name}_{current_time}" if self._experiment_name else current_time
+        self._train_log_dir = str(Path(self.log_base_dir, "gradient_tape", dir_name, "train"))
+        self._validation_log_dir = str(Path(self.log_base_dir, "gradient_tape", dir_name, "validation"))
+        self._graph_log_dir = str(Path(self.log_base_dir, "func", dir_name))
         self._train_summary_writer = tf.summary.create_file_writer(self._train_log_dir)
         self._validation_summary_writer = tf.summary.create_file_writer(self._validation_log_dir)
 

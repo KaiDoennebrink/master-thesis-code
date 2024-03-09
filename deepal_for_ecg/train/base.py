@@ -12,21 +12,21 @@ class BaseTrainer(abc.ABC):
     """Base class for training a neural network."""
 
     def __init__(
-            self,
-            model: keras.Model,
-            model_name: str,
-            batch_size: int = 256,
-            epochs: int = 50,
-            keep_best_model: bool = True,
-            model_base_dir: str = "./models",
-            log_base_dir: str = "./logs"
+        self,
+        model: keras.Model,
+        model_name: str,
+        batch_size: int = 256,
+        epochs: int = 50,
+        keep_best_model: bool = True,
+        model_base_dir: str = "./models",
+        log_base_dir: str = "./logs",
     ):
         self.model = model
         self.model_name = model_name
         self.batch_size = batch_size
         self.epochs = epochs
         self.keep_best_model = keep_best_model
-        self._best_main_metric_result = -1.
+        self._best_main_metric_result = -1.0
         self._best_epoch = -1
         self.model_base_dir = model_base_dir
         self.log_base_dir = log_base_dir
@@ -36,7 +36,12 @@ class BaseTrainer(abc.ABC):
         self._experiment_name = None
         self._early_stopping_patience = 25
 
-    def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset, verbose: bool = False):
+    def fit(
+        self,
+        train_ds: tf.data.Dataset,
+        validation_ds: tf.data.Dataset,
+        verbose: bool = False,
+    ):
         """Trains the model on the given dataset."""
         self._prepare()
 
@@ -49,11 +54,19 @@ class BaseTrainer(abc.ABC):
 
             # trainings data augmentation
             augmented_train_ds = self._get_training_dataset(train_ds)
-            for samples, labels in tqdm(augmented_train_ds.batch(self.batch_size), desc=f"Training - Epoch: {epoch}", disable=verbose):
+            for samples, labels in tqdm(
+                augmented_train_ds.batch(self.batch_size),
+                desc=f"Training - Epoch: {epoch}",
+                disable=verbose,
+            ):
                 self._training_step(samples, labels)
             self._log_training_metrics(epoch)
 
-            for validation_samples, validation_labels in tqdm(prepared_validation_ds.batch(self.batch_size), desc=f"Validation - Epoch: {epoch}", disable=verbose):
+            for validation_samples, validation_labels in tqdm(
+                prepared_validation_ds.batch(self.batch_size),
+                desc=f"Validation - Epoch: {epoch}",
+                disable=verbose,
+            ):
                 self._validation_step(validation_samples, validation_labels)
             self._log_validation_metrics(epoch)
 
@@ -67,12 +80,20 @@ class BaseTrainer(abc.ABC):
 
             # stop the training if there was no improvement for a too long time
             if (epoch - self._best_epoch) == self._early_stopping_patience:
-                print(f"Early stopping after epoch {epoch} - last improvement was in epoch {self._best_epoch} with {self._best_main_metric_result}")
+                print(
+                    f"Early stopping after epoch {epoch} - last improvement was in epoch {self._best_epoch} with {self._best_main_metric_result}"
+                )
                 break
 
     def get_model(self, best: bool = False) -> tf.keras.Model:
         """Returns either the current or the best model."""
-        return keras.models.load_model(Path(self.model_base_dir, self.model_name, "best_model.keras")) if best else self.model
+        return (
+            keras.models.load_model(
+                Path(self.model_base_dir, self.model_name, "best_model.keras")
+            )
+            if best
+            else self.model
+        )
 
     @property
     def best_epoch(self) -> int:
@@ -122,10 +143,18 @@ class BaseTrainer(abc.ABC):
 
     def _save_best_model(self) -> bool:
         """Saves the model if the current validation AUC is the currently best one."""
-        if self.keep_best_model and self._get_main_validation_metric_result() >= self._best_main_metric_result:
+        if (
+            self.keep_best_model
+            and self._get_main_validation_metric_result()
+            >= self._best_main_metric_result
+        ):
             self._best_main_metric_result = self._get_main_validation_metric_result()
-            print(f"Saving new best model with main validation metric: {self._best_main_metric_result}")
-            self.model.save(Path(self.model_base_dir, self.model_name, "best_model.keras"))
+            print(
+                f"Saving new best model with main validation metric: {self._best_main_metric_result}"
+            )
+            self.model.save(
+                Path(self.model_base_dir, self.model_name, "best_model.keras")
+            )
             return True
         return False
 
@@ -142,12 +171,22 @@ class BaseTrainer(abc.ABC):
     def _initialize_log_writer(self):
         """Initializes the log writer used for the current run."""
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        dir_name = f"{self._experiment_name}_{current_time}" if self._experiment_name else current_time
-        self._train_log_dir = str(Path(self.log_base_dir, "gradient_tape", dir_name, "train"))
-        self._validation_log_dir = str(Path(self.log_base_dir, "gradient_tape", dir_name, "validation"))
+        dir_name = (
+            f"{self._experiment_name}_{current_time}"
+            if self._experiment_name
+            else current_time
+        )
+        self._train_log_dir = str(
+            Path(self.log_base_dir, "gradient_tape", dir_name, "train")
+        )
+        self._validation_log_dir = str(
+            Path(self.log_base_dir, "gradient_tape", dir_name, "validation")
+        )
         self._graph_log_dir = str(Path(self.log_base_dir, "func", dir_name))
         self._train_summary_writer = tf.summary.create_file_writer(self._train_log_dir)
-        self._validation_summary_writer = tf.summary.create_file_writer(self._validation_log_dir)
+        self._validation_summary_writer = tf.summary.create_file_writer(
+            self._validation_log_dir
+        )
 
     def _log_model(self):
         """Logs the model to visualize it in tensorboard."""
@@ -169,9 +208,12 @@ class BaseTrainer(abc.ABC):
         return dataset
 
     @staticmethod
-    def _log_metrics(epoch: int, summary_writer: tf.summary.SummaryWriter,
-                     metrics: list[keras.metrics.Metric],
-                     metric_names: list[str]):
+    def _log_metrics(
+        epoch: int,
+        summary_writer: tf.summary.SummaryWriter,
+        metrics: list[keras.metrics.Metric],
+        metric_names: list[str],
+    ):
         """Logs the metrics with the specified summary writer."""
         with summary_writer.as_default():
             for metric, name in zip(metrics, metric_names):

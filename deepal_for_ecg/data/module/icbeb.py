@@ -14,7 +14,10 @@ class ICBEBDataModule:
 
     NUM_CLASSES = 9
 
-    def __init__(self, saved_datasets_base_dir: Path = Path("./data/saved/icbeb/datasets"),):
+    def __init__(
+        self,
+        saved_datasets_base_dir: Path = Path("./data/saved/icbeb/datasets"),
+    ):
         """
         Initializes the data module. Since the ICBEB 2018 challenge just offers a training set and a small validation
         set we have to create our own training, validation, and test datasets from it.
@@ -52,8 +55,13 @@ class ICBEBDataModule:
             self._train_dataset = tf.data.Dataset.load(str(path_to_saved_dataset))
         return self._train_dataset
 
-    def prepare_datasets(self, train_samples: np.ndarray, val_samples: np.ndarray, train_labels: np.ndarray,
-                         val_labels: np.ndarray):
+    def prepare_datasets(
+        self,
+        train_samples: np.ndarray,
+        val_samples: np.ndarray,
+        train_labels: np.ndarray,
+        val_labels: np.ndarray,
+    ):
         """
         Splits the ICBEB dataset into training, validation, and test datasets with a ratio of 8:1:1 and saves them.
 
@@ -68,16 +76,24 @@ class ICBEBDataModule:
 
         samples = np.concatenate((train_samples, val_samples))
         labels = np.concatenate((train_labels, val_labels))
-        x_train_val, x_test, y_train_val, y_test = train_test_split(samples, labels, train_size=0.9,
-                                                                    stratify=labels)
-        x_train, x_val, y_train, y_val = train_test_split(x_train_val, y_train_val, train_size=0.8888888888888,
-                                                          stratify=y_train_val)
+        x_train_val, x_test, y_train_val, y_test = train_test_split(
+            samples, labels, train_size=0.9, stratify=labels
+        )
+        x_train, x_val, y_train, y_val = train_test_split(
+            x_train_val, y_train_val, train_size=0.8888888888888, stratify=y_train_val
+        )
 
         self._save_dataset("train", x_train, y_train)
         self._save_dataset("validation", x_val, y_val, with_sliding_windows=True)
         self._save_dataset("test", x_test, y_test, with_sliding_windows=True)
 
-    def _save_dataset(self, name: str, x: np.ndarray, y: np.ndarray, with_sliding_windows: bool = False):
+    def _save_dataset(
+        self,
+        name: str,
+        x: np.ndarray,
+        y: np.ndarray,
+        with_sliding_windows: bool = False,
+    ):
         """
         Saves the given data and labels as a dataset.
 

@@ -7,11 +7,28 @@ from deepal_for_ecg.train.base import BaseTrainer
 class TransformationRecognitionTrainer(BaseTrainer):
     """The trainer class for training a neural network on a pretext task to recognize time series transformations."""
 
-    def __init__(self, model: keras.Model, model_name: str, batch_size: int = 128, epochs: int = 50,
-                 keep_best_model: bool = True, model_base_dir: str = "./models", log_base_dir: str = "./logs",
-                 learning_rate: float = 1e-3, weight_decay: float = 1e-2):
+    def __init__(
+        self,
+        model: keras.Model,
+        model_name: str,
+        batch_size: int = 128,
+        epochs: int = 50,
+        keep_best_model: bool = True,
+        model_base_dir: str = "./models",
+        log_base_dir: str = "./logs",
+        learning_rate: float = 1e-3,
+        weight_decay: float = 1e-2,
+    ):
         """Initializes a trainer."""
-        super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir)
+        super().__init__(
+            model,
+            model_name,
+            batch_size,
+            epochs,
+            keep_best_model,
+            model_base_dir,
+            log_base_dir,
+        )
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
 
@@ -19,7 +36,9 @@ class TransformationRecognitionTrainer(BaseTrainer):
         self._train_loss = keras.metrics.Mean(name="train_loss")
         self._train_accuracy = keras.metrics.CategoricalAccuracy(name="train_accuracy")
         self._validation_loss = keras.metrics.Mean(name="validation_loss")
-        self._validation_accuracy = keras.metrics.CategoricalAccuracy(name="validation_accuracy")
+        self._validation_accuracy = keras.metrics.CategoricalAccuracy(
+            name="validation_accuracy"
+        )
 
     def _reset_metrics(self):
         self._train_loss.reset_states()
@@ -34,17 +53,26 @@ class TransformationRecognitionTrainer(BaseTrainer):
         return keras.losses.CategoricalCrossentropy(from_logits=True)
 
     def _get_optimizer(self) -> keras.optimizers.Optimizer:
-        return keras.optimizers.Adam(learning_rate=self.learning_rate, weight_decay=self.weight_decay)
+        return keras.optimizers.Adam(
+            learning_rate=self.learning_rate, weight_decay=self.weight_decay
+        )
         # return keras.optimizers.Adam()
 
     def _log_training_metrics(self, epoch: int):
-        self._log_metrics(epoch, self._train_summary_writer, metrics=[self._train_loss, self._train_accuracy],
-                          metric_names=["loss", "accuracy"])
+        self._log_metrics(
+            epoch,
+            self._train_summary_writer,
+            metrics=[self._train_loss, self._train_accuracy],
+            metric_names=["loss", "accuracy"],
+        )
 
     def _log_validation_metrics(self, epoch: int):
-        self._log_metrics(epoch, self._validation_summary_writer,
-                          metrics=[self._validation_loss, self._validation_accuracy],
-                          metric_names=["loss", "accuracy"])
+        self._log_metrics(
+            epoch,
+            self._validation_summary_writer,
+            metrics=[self._validation_loss, self._validation_accuracy],
+            metric_names=["loss", "accuracy"],
+        )
 
     def _print_metrics(self):
         print(

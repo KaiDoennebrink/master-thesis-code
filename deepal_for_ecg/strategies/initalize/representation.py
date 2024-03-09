@@ -22,14 +22,21 @@ class RepresentationClusteringInitQueryStrategy:
     cluster center is selected.
     """
 
-    def __init__(self, pretrained_model: keras.Model, num_clusters: int, augmentation_method: callable = random_crop,
-                 augmentation_kwargs: dict | None = None):
+    def __init__(
+        self,
+        pretrained_model: keras.Model,
+        num_clusters: int,
+        augmentation_method: callable = random_crop,
+        augmentation_kwargs: dict | None = None,
+    ):
         self._pretrained_model = pretrained_model
         self._representation_model = self._get_representation_part_of_model()
         self._num_clusters = num_clusters
         self._kmeans = KMeans(n_clusters=self._num_clusters)
         self._augmentation_method = augmentation_method
-        self._augmentation_kwargs = augmentation_kwargs if augmentation_kwargs else dict()
+        self._augmentation_kwargs = (
+            augmentation_kwargs if augmentation_kwargs else dict()
+        )
         self._all_sample_representation = None
 
     def prepare(self, unlabeled_samples: tf.data.Dataset):
@@ -45,7 +52,9 @@ class RepresentationClusteringInitQueryStrategy:
         selected_samples = set()
         for center_idx, center in enumerate(self._kmeans.cluster_centers_):
             cluster_selection_condition = cluster_labels == center_idx
-            cluster_points = self._all_sample_representation[cluster_selection_condition]
+            cluster_points = self._all_sample_representation[
+                cluster_selection_condition
+            ]
             orig_cluster_point_indices = orig_indices[cluster_selection_condition]
 
             distances = np.linalg.norm(cluster_points - center, axis=1)
@@ -54,7 +63,9 @@ class RepresentationClusteringInitQueryStrategy:
         return selected_samples
 
     def _get_representations(self, unlabeled_samples: tf.data.Dataset) -> np.ndarray:
-        augmented_ds = unlabeled_samples.map(lambda x: self._augmentation_method(x, **self._augmentation_kwargs))
+        augmented_ds = unlabeled_samples.map(
+            lambda x: self._augmentation_method(x, **self._augmentation_kwargs)
+        )
 
         all_sample_representation = []
         for sample_batch in augmented_ds.batch(128):

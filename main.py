@@ -8,13 +8,22 @@ from deepal_for_ecg.data.loader.icbeb import ICBEBDataLoader
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.data.module.icbeb import ICBEBDataModule
-from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
-from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategyExperiment
+from deepal_for_ecg.data.module.tranformation_recognition import (
+    TransformationRecognitionDataModule,
+)
+from deepal_for_ecg.experiments.initialization_strategy import (
+    InitializationStrategyExperiment,
+)
 from deepal_for_ecg.models.classification_heads import simple_classification_head
-from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
+from deepal_for_ecg.models.inception_network import (
+    InceptionNetworkConfig,
+    InceptionNetworkBuilder,
+)
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
 from deepal_for_ecg.train.time_series import MultiLabelTimeSeriesTrainer
-from deepal_for_ecg.train.transformation_recognition import TransformationRecognitionTrainer
+from deepal_for_ecg.train.transformation_recognition import (
+    TransformationRecognitionTrainer,
+)
 from deepal_for_ecg.util import improve_gpu_capacity
 
 improve_gpu_capacity()
@@ -25,7 +34,9 @@ app = typer.Typer()
 @app.command()
 def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 300):
     """Executes the initialization strategy experiment. The results are saved in a csv-file."""
-    experiment = InitializationStrategyExperiment(runs_per_strategy=runs_per_strategy, initial_samples=initial_samples)
+    experiment = InitializationStrategyExperiment(
+        runs_per_strategy=runs_per_strategy, initial_samples=initial_samples
+    )
     experiment.run()
 
 
@@ -42,14 +53,19 @@ def train_pretext_model(base_name: str = "PretextInception", num_models: int = 1
     data_module = TransformationRecognitionDataModule()
 
     # prepare the model builder
-    config = InceptionNetworkConfig(create_classification_head=simple_classification_head,
-                                    num_classes=data_module.NUM_TRANSFORMATIONS, input_shape=(1000, 12))
+    config = InceptionNetworkConfig(
+        create_classification_head=simple_classification_head,
+        num_classes=data_module.NUM_TRANSFORMATIONS,
+        input_shape=(1000, 12),
+    )
     builder = InceptionNetworkBuilder()
 
     # train the models
     for i in range(num_models):
         model = builder.build_model(config)
-        trainer = TransformationRecognitionTrainer(model=model, model_name=f"{base_name}{i+1}")
+        trainer = TransformationRecognitionTrainer(
+            model=model, model_name=f"{base_name}{i+1}"
+        )
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
 
@@ -66,19 +82,26 @@ def train_icbeb_model(base_name: str = "ICBEBInception", num_models: int = 1):
     data_module = ICBEBDataModule()
 
     # prepare the model builder
-    config = InceptionNetworkConfig(num_classes=data_module.NUM_CLASSES, input_shape=(250, 12))
+    config = InceptionNetworkConfig(
+        num_classes=data_module.NUM_CLASSES, input_shape=(250, 12)
+    )
     builder = InceptionNetworkBuilder()
 
     # train the models
     for i in range(num_models):
         model = builder.build_model(config)
-        trainer = MultiLabelTimeSeriesTrainer(model=model, model_name=f"{base_name}{i+1}",
-                                              num_labels=data_module.NUM_CLASSES)
+        trainer = MultiLabelTimeSeriesTrainer(
+            model=model,
+            model_name=f"{base_name}{i+1}",
+            num_labels=data_module.NUM_CLASSES,
+        )
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
 
 @app.command()
-def train_ptbxl_model_fully_supervised(base_name: str = "full_supervised_PTBXLInception", num_models: int = 1):
+def train_ptbxl_model_fully_supervised(
+    base_name: str = "full_supervised_PTBXLInception", num_models: int = 1
+):
     """
     Trains models on the PTBXL dataset in a fully supervised fashion.
 
@@ -96,12 +119,14 @@ def train_ptbxl_model_fully_supervised(base_name: str = "full_supervised_PTBXLIn
         train_labels_12sl=data_loader.Y_train_12sl,
         train_labels_ptb_xl=data_loader.Y_train_ptb_xl,
         test_labels=data_loader.Y_test,
-        val_labels=data_loader.Y_valid
+        val_labels=data_loader.Y_valid,
     )
 
     # buy all labels from the original ptb-xl dataset
     data_module_state = data_module.state_dict()
-    data_module.update_annotations(buy_idx_ptb_xl=data_module_state["unlabeled_indices"], buy_idx_12sl=set())
+    data_module.update_annotations(
+        buy_idx_ptb_xl=data_module_state["unlabeled_indices"], buy_idx_12sl=set()
+    )
 
     # prepare the model builder
     config = InceptionNetworkConfig()
@@ -110,8 +135,11 @@ def train_ptbxl_model_fully_supervised(base_name: str = "full_supervised_PTBXLIn
     # train the models
     for i in range(num_models):
         model = builder.build_model(config)
-        trainer = MultiLabelTimeSeriesTrainer(model=model, model_name=f"{base_name}{i+1}",
-                                              num_labels=data_module.NUM_CLASSES)
+        trainer = MultiLabelTimeSeriesTrainer(
+            model=model,
+            model_name=f"{base_name}{i+1}",
+            num_labels=data_module.NUM_CLASSES,
+        )
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
 
@@ -136,7 +164,9 @@ def prepare_data_icbeb():
     data_loader.save_data()
 
     data_module = ICBEBDataModule()
-    data_module.prepare_datasets(data_loader.X_train, data_loader.X_val, data_loader.Y_train, data_loader.Y_val)
+    data_module.prepare_datasets(
+        data_loader.X_train, data_loader.X_val, data_loader.Y_train, data_loader.Y_val
+    )
 
 
 @app.command()

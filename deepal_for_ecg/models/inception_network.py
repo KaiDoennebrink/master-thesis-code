@@ -6,7 +6,10 @@ import tensorflow as tf
 from tensorflow import keras
 
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
-from deepal_for_ecg.models.classification_heads import BasicClassificationHeadConfig, simple_multi_label_classification_head
+from deepal_for_ecg.models.classification_heads import (
+    BasicClassificationHeadConfig,
+    simple_multi_label_classification_head,
+)
 
 
 @dataclass
@@ -33,6 +36,7 @@ class InceptionNetworkConfig:
         create_classification_head (callable): A function that can create the classification head from a
             BasicClassificationHEadConfig object.
     """
+
     input_shape: Tuple[int, int] = (250, 12)
     num_classes: int | None = PTBXLActiveLearningDataModule.NUM_CLASSES
     num_filters: int = 32
@@ -57,8 +61,8 @@ class InceptionNetworkConfig:
         """
         Calculates the kernel size used for convolutions in the inception modules.
         """
-        self.kernel_sizes = [self.max_kernel_size // (2 ** i) for i in range(3)]
-        handcrafted_kernel_sizes = [2 ** i for i in range(1, self.max_cf_length + 1)]
+        self.kernel_sizes = [self.max_kernel_size // (2**i) for i in range(3)]
+        handcrafted_kernel_sizes = [2**i for i in range(1, self.max_cf_length + 1)]
         self.increasing_trend_kernels = handcrafted_kernel_sizes
         self.decreasing_trend_kernels = handcrafted_kernel_sizes
         self.peak_kernels = handcrafted_kernel_sizes[1:]
@@ -74,7 +78,9 @@ class InceptionNetworkBuilder:
         self._config = None
 
     def build_model(
-            self, config: InceptionNetworkConfig, representation_model: keras.Model | None = None
+        self,
+        config: InceptionNetworkConfig,
+        representation_model: keras.Model | None = None,
     ) -> keras.Model:
         """
         Builds the inception network model for the input and number of classes.
@@ -109,7 +115,7 @@ class InceptionNetworkBuilder:
             representation_model = keras.Model(
                 inputs=input_layer,
                 outputs=tmp_representation_out,
-                name="Representation"
+                name="Representation",
             )
 
         # output of the feature extraction part
@@ -118,22 +124,20 @@ class InceptionNetworkBuilder:
         if self._config.with_classification_head:
             config = BasicClassificationHeadConfig(
                 num_input_units=representation_model.output_shape[-1],
-                num_output_units=self._config.num_classes
+                num_output_units=self._config.num_classes,
             )
             classification_head = self._config.create_classification_head(config)
             output_layer = classification_head(representation_out)
 
             # return the full inception network
-            return keras.Model(inputs=input_layer, outputs=output_layer, name="InceptionNetwork")
+            return keras.Model(
+                inputs=input_layer, outputs=output_layer, name="InceptionNetwork"
+            )
         else:
             # just return the feature extractor of the inception network
             return representation_model
 
-    def _hybrid_layer(
-            self,
-            input_tensor: tf.Tensor,
-            input_channels: int
-    ):
+    def _hybrid_layer(self, input_tensor: tf.Tensor, input_channels: int):
         """
         Function to create the hybrid layer consisting of non-trainable Conv1D layers with custom filters.
 
@@ -149,55 +153,79 @@ class InceptionNetworkBuilder:
             # formula of increasing detection filter
             filter_ = np.ones(shape=(kernel_size, input_channels, 1))
             indices_ = np.arange(kernel_size)
-            filter_[indices_ % 2 == 0] *= -1 
+            filter_[indices_ % 2 == 0] *= -1
 
-            conv = keras.layers.Conv1D(filters=1, kernel_size=kernel_size, padding="same", use_bias=False, 
-                                       kernel_initializer=tf.keras.initializers.Constant(filter_), trainable=False,
-                                       name=f"Hybrid_Increase_{kernel_size}")(input_tensor)
+            conv = keras.layers.Conv1D(
+                filters=1,
+                kernel_size=kernel_size,
+                padding="same",
+                use_bias=False,
+                kernel_initializer=tf.keras.initializers.Constant(filter_),
+                trainable=False,
+                name=f"Hybrid_Increase_{kernel_size}",
+            )(input_tensor)
             conv_list.append(conv)
 
         # for decreasing detection filters
         for kernel_size in self._config.decreasing_trend_kernels:
             # formula of decreasing detection filter
-            filter_ = np.ones(shape=(kernel_size, input_channels, 1))  
+            filter_ = np.ones(shape=(kernel_size, input_channels, 1))
             indices_ = np.arange(kernel_size)
-            filter_[indices_ % 2 > 0] *= -1  
+            filter_[indices_ % 2 > 0] *= -1
 
-            conv = keras.layers.Conv1D(filters=1, kernel_size=kernel_size, padding="same", use_bias=False, 
-                                       kernel_initializer=tf.keras.initializers.Constant(filter_),trainable=False,
-                                       name=f"Hybrid_Decrease_{kernel_size}")(input_tensor)
+            conv = keras.layers.Conv1D(
+                filters=1,
+                kernel_size=kernel_size,
+                padding="same",
+                use_bias=False,
+                kernel_initializer=tf.keras.initializers.Constant(filter_),
+                trainable=False,
+                name=f"Hybrid_Decrease_{kernel_size}",
+            )(input_tensor)
             conv_list.append(conv)
 
         # for peak detection filters
         for kernel_size in self._config.peak_kernels:
             # formula of peak detection filter
-            filter_ = np.zeros(shape=(kernel_size + kernel_size // 2, input_channels, 1))
-            xmesh = np.linspace(start=0, stop=1, num=kernel_size // 4 + 1)[1:].reshape((-1, 1, 1))
-            filter_left = xmesh ** 2
+            filter_ = np.zeros(
+                shape=(kernel_size + kernel_size // 2, input_channels, 1)
+            )
+            xmesh = np.linspace(start=0, stop=1, num=kernel_size // 4 + 1)[1:].reshape(
+                (-1, 1, 1)
+            )
+            filter_left = xmesh**2
             filter_right = filter_left[::-1]
-            filter_[0:kernel_size // 4] = -filter_left
-            filter_[kernel_size // 4:kernel_size // 2] = -filter_right
-            filter_[kernel_size // 2:3 * kernel_size // 4] = 2 * filter_left
-            filter_[3 * kernel_size // 4:kernel_size] = 2 * filter_right
-            filter_[kernel_size:5 * kernel_size // 4] = -filter_left
-            filter_[5 * kernel_size // 4:] = -filter_right
+            filter_[0 : kernel_size // 4] = -filter_left
+            filter_[kernel_size // 4 : kernel_size // 2] = -filter_right
+            filter_[kernel_size // 2 : 3 * kernel_size // 4] = 2 * filter_left
+            filter_[3 * kernel_size // 4 : kernel_size] = 2 * filter_right
+            filter_[kernel_size : 5 * kernel_size // 4] = -filter_left
+            filter_[5 * kernel_size // 4 :] = -filter_right
 
-            conv = keras.layers.Conv1D(filters=1, kernel_size=kernel_size + kernel_size // 2, padding="same", 
-                                       use_bias=False, kernel_initializer=tf.keras.initializers.Constant(filter_), 
-                                       trainable=False, name=f"Hybrid_Peaks_{kernel_size}")(input_tensor)
+            conv = keras.layers.Conv1D(
+                filters=1,
+                kernel_size=kernel_size + kernel_size // 2,
+                padding="same",
+                use_bias=False,
+                kernel_initializer=tf.keras.initializers.Constant(filter_),
+                trainable=False,
+                name=f"Hybrid_Peaks_{kernel_size}",
+            )(input_tensor)
             conv_list.append(conv)
 
         hybrid_layer = keras.layers.Concatenate(axis=2, name="Hybrid_Concat")(conv_list)
-        hybrid_layer = keras.layers.Activation(activation="relu", name="Hybrid_Activation")(hybrid_layer)
+        hybrid_layer = keras.layers.Activation(
+            activation="relu", name="Hybrid_Activation"
+        )(hybrid_layer)
 
         return hybrid_layer
 
     def _inception_module(
-            self,
-            input_tensor: tf.Tensor,
-            current_depth: int,
-            stride: int = 1,
-            activation: str = "linear"
+        self,
+        input_tensor: tf.Tensor,
+        current_depth: int,
+        stride: int = 1,
+        activation: str = "linear",
     ) -> tf.Tensor:
         """
         Adds an inception module to the network.
@@ -215,28 +243,48 @@ class InceptionNetworkBuilder:
         inception_module_name_prefix = f"InceptionModule{current_depth + 1}_"
 
         if self._use_bottleneck(int(input_tensor.shape[-1])):
-            input_inception = keras.layers.Conv1D(name=f"{inception_module_name_prefix}Bottleneck",
-                                                  filters=self._config.bottleneck_size, kernel_size=1, padding="same",
-                                                  activation=activation, use_bias=False)(input_tensor)
+            input_inception = keras.layers.Conv1D(
+                name=f"{inception_module_name_prefix}Bottleneck",
+                filters=self._config.bottleneck_size,
+                kernel_size=1,
+                padding="same",
+                activation=activation,
+                use_bias=False,
+            )(input_tensor)
         else:
             input_inception = input_tensor
 
         conv_list = []
 
         for i, kernel_size in enumerate(self._config.kernel_sizes):
-            conv_list.append(keras.layers.Conv1D(name=f"{inception_module_name_prefix}Convolution{kernel_size}",
-                                                 filters=self._config.num_filters, kernel_size=kernel_size,
-                                                 strides=stride, padding="same", activation=activation,
-                                                 use_bias=False)(input_inception)
-                             )
+            conv_list.append(
+                keras.layers.Conv1D(
+                    name=f"{inception_module_name_prefix}Convolution{kernel_size}",
+                    filters=self._config.num_filters,
+                    kernel_size=kernel_size,
+                    strides=stride,
+                    padding="same",
+                    activation=activation,
+                    use_bias=False,
+                )(input_inception)
+            )
 
-        max_pool_1 = keras.layers.MaxPool1D(name=f"{inception_module_name_prefix}MaxPool",
-                                            pool_size=3, strides=stride, padding="same")(input_tensor)
+        max_pool_1 = keras.layers.MaxPool1D(
+            name=f"{inception_module_name_prefix}MaxPool",
+            pool_size=3,
+            strides=stride,
+            padding="same",
+        )(input_tensor)
 
         # TODO: Evaluate whether to just add the bottleneck layer if input channels > num_filters and input channels > 1
-        conv_6 = keras.layers.Conv1D(name=f"{inception_module_name_prefix}MaxPool_Bottleneck",
-                                     filters=self._config.num_filters, kernel_size=1,
-                                     padding="same", activation=activation, use_bias=False)(max_pool_1)
+        conv_6 = keras.layers.Conv1D(
+            name=f"{inception_module_name_prefix}MaxPool_Bottleneck",
+            filters=self._config.num_filters,
+            kernel_size=1,
+            padding="same",
+            activation=activation,
+            use_bias=False,
+        )(max_pool_1)
 
         conv_list.append(conv_6)
 
@@ -245,16 +293,22 @@ class InceptionNetworkBuilder:
             hybrid = self._hybrid_layer(input_tensor, int(input_tensor.shape[-1]))
             conv_list.append(hybrid)
 
-        x = keras.layers.Concatenate(name=f"{inception_module_name_prefix}Concat", axis=2)(conv_list)
-        x = keras.layers.BatchNormalization(name=f"{inception_module_name_prefix}BatchNorm")(x)
-        x = keras.layers.Activation(name=f"{inception_module_name_prefix}Activation", activation="relu")(x)
+        x = keras.layers.Concatenate(
+            name=f"{inception_module_name_prefix}Concat", axis=2
+        )(conv_list)
+        x = keras.layers.BatchNormalization(
+            name=f"{inception_module_name_prefix}BatchNorm"
+        )(x)
+        x = keras.layers.Activation(
+            name=f"{inception_module_name_prefix}Activation", activation="relu"
+        )(x)
         return x
 
     def _shortcut_layer(
-            self,
-            residual_input_tensor: tf.Tensor,
-            other_tensor: tf.Tensor,
-            current_depth: int
+        self,
+        residual_input_tensor: tf.Tensor,
+        other_tensor: tf.Tensor,
+        current_depth: int,
     ) -> tf.Tensor:
         """
         Adds a shortcut layer to the network.
@@ -270,13 +324,23 @@ class InceptionNetworkBuilder:
         num_shortcut = int(current_depth / 3) + 1
         shortcut_layer_name_prefix = f"Shortcut{num_shortcut}_"
 
-        shortcut_y = keras.layers.Conv1D(name=f"{shortcut_layer_name_prefix}ResidualConvolution",
-                                         filters=int(other_tensor.shape[-1]), kernel_size=1,
-                                         padding="same", use_bias=False)(residual_input_tensor)
-        shortcut_y = keras.layers.BatchNormalization(name=f"{shortcut_layer_name_prefix}ResidualBatchNorm")(shortcut_y)
+        shortcut_y = keras.layers.Conv1D(
+            name=f"{shortcut_layer_name_prefix}ResidualConvolution",
+            filters=int(other_tensor.shape[-1]),
+            kernel_size=1,
+            padding="same",
+            use_bias=False,
+        )(residual_input_tensor)
+        shortcut_y = keras.layers.BatchNormalization(
+            name=f"{shortcut_layer_name_prefix}ResidualBatchNorm"
+        )(shortcut_y)
 
-        x = keras.layers.Add(name=f"{shortcut_layer_name_prefix}Add")([shortcut_y, other_tensor])
-        x = keras.layers.Activation("relu", name=f"{shortcut_layer_name_prefix}Activation")(x)
+        x = keras.layers.Add(name=f"{shortcut_layer_name_prefix}Add")(
+            [shortcut_y, other_tensor]
+        )
+        x = keras.layers.Activation(
+            "relu", name=f"{shortcut_layer_name_prefix}Activation"
+        )(x)
         return x
 
     def _use_bottleneck(self, input_channels: int) -> bool:
@@ -289,4 +353,8 @@ class InceptionNetworkBuilder:
         Returns:
             An indicator whether to use the bottleneck layer or not.
         """
-        return self._config.use_bottleneck and input_channels > self._config.bottleneck_size and input_channels > 1
+        return (
+            self._config.use_bottleneck
+            and input_channels > self._config.bottleneck_size
+            and input_channels > 1
+        )

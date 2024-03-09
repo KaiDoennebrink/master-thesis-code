@@ -1,4 +1,5 @@
 import ast
+import logging
 from pathlib import Path
 from typing import Dict, Any
 
@@ -10,6 +11,9 @@ import wfdb
 
 from deepal_for_ecg.data.loader.base import BaseDataLoader
 from deepal_for_ecg.data.loader.util import apply_standardizer
+
+
+logger = logging.getLogger(__name__)
 
 
 class PTBXLDataLoader(BaseDataLoader):
@@ -46,6 +50,7 @@ class PTBXLDataLoader(BaseDataLoader):
         self._load_labels()
         self._split_data()
         self._preprocess_signals()
+        self._ensure_label_availability()
 
     def _set_data(self, data: Dict[str, Any]):
         """Sets the loaded and processed data."""
@@ -88,7 +93,7 @@ class PTBXLDataLoader(BaseDataLoader):
         ptb_xl_df = tmp_ptb_xl_df[["strat_fold", "filename_lr"]]
 
         file_location_series = ptb_xl_df["filename_lr"]
-        data = [wfdb.rdsamp(str(self._raw_ptb_xl_data_dir.joinpath(str(f)))) for f in tqdm(file_location_series)]
+        data = [wfdb.rdsamp(str(self._raw_ptb_xl_data_dir.joinpath(str(f)))) for f in tqdm(file_location_series, desc="Load samples")]
         self._samples = np.array([signal for signal, _ in data])
         self._folds = ptb_xl_df["strat_fold"]
 
@@ -150,3 +155,34 @@ class PTBXLDataLoader(BaseDataLoader):
         """Filters the given SNOMED CT codes with probabilities and just keeps the relevant codes."""
         all_codes = set([code_with_prob[0] for code_with_prob in codes_with_probs])
         return self._relevant_snomed_ct_codes.intersection(all_codes)
+
+    def _ensure_label_availability(self):
+        """Ensures that each label is present in each split."""
+        logger.debug(f"Check for missing labels in each split.")
+        missing_label_indices = self._check_for_missing_labels(self.Y_test)
+        missing_label_indices.extend(self._check_for_missing_labels(self.Y_valid))
+        missing_label_indices.extend(self._check_for_missing_labels(self.Y_train_12sl))
+        missing_label_indices.extend(self._check_for_missing_labels(self.Y_train_ptb_xl))
+        logger.debug(f"Found {len(missing_label_indices)} missing labels: {missing_label_indices}")
+
+        # remove missing label indices from the
+        if len(missing_label_indices) > 0:
+            logger.debug(f"Delete missing label columns from all splits.")
+            self.Y_train_ptb_xl = self._delete_missing_labels(self.Y_train_ptb_xl, missing_label_indices)
+            self.Y_train_12sl = self._delete_missing_labels(self.Y_train_12sl, missing_label_indices)
+            self.Y_valid = self._delete_missing_labels(self.Y_valid, missing_label_indices)
+            self.Y_test = self._delete_missing_labels(self.Y_test, missing_label_indices)
+
+        assert (self.Y_train_ptb_xl.shape[1] == self.Y_train_12sl.shape[1] == self.Y_test.shape[1] ==
+                self.Y_valid.shape[1]), (f"Label splits have different number of labels "
+                                         f"{self.Y_train_ptb_xl.shape[1] = }, {self.Y_train_12sl.shape[1] = }, "
+                                         f"{self.Y_test.shape[1] = }, {self.Y_valid.shape[1] =}")
+        logger.debug(f"{self.Y_train_ptb_xl.shape[1]} labels are available.")
+
+    def _check_for_missing_labels(self, label_split: np.ndarray) -> list[int]:
+        """Checks whether labels are missing in the split and returns the indices of the missing labels."""
+        return np.where(label_split.sum(axis=0) == 0)[0].tolist()
+
+    def _delete_missing_labels(self, label_split: np.ndarray, column_indices: list[int]) -> np.ndarray:
+        """Deletes the given columns from the split label array."""
+        return np.delete(label_split, column_indices, axis=1)

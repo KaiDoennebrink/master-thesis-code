@@ -21,4 +21,4 @@ class RandomQueryStrategy:
         Returns:
             A set of selected sample indices.
         """
-        return set(self._rng.choice(list(unlabeled_indices), num_of_samples))
+        return set(self._rng.choice(list(unlabeled_indices), num_of_samples, replace=False))

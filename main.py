@@ -23,9 +23,9 @@ app = typer.Typer()
 
 
 @app.command()
-def experiment_init_strategy(runs_per_strategy: int = 5):
+def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 300):
     """Executes the initialization strategy experiment. The results are saved in a csv-file."""
-    experiment = InitializationStrategyExperiment(runs_per_strategy=runs_per_strategy)
+    experiment = InitializationStrategyExperiment(runs_per_strategy=runs_per_strategy, initial_samples=initial_samples)
     experiment.run()
 
 

@@ -36,7 +36,7 @@ class BaseTrainer(abc.ABC):
         self._experiment_name = None
         self._early_stopping_patience = 25
 
-    def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset):
+    def fit(self, train_ds: tf.data.Dataset, validation_ds: tf.data.Dataset, verbose: bool = False):
         """Trains the model on the given dataset."""
         self._prepare()
 
@@ -49,23 +49,25 @@ class BaseTrainer(abc.ABC):
 
             # trainings data augmentation
             augmented_train_ds = self._get_training_dataset(train_ds)
-            for samples, labels in tqdm(augmented_train_ds.batch(self.batch_size), desc=f"Training - Epoch: {epoch}"):
+            for samples, labels in tqdm(augmented_train_ds.batch(self.batch_size), desc=f"Training - Epoch: {epoch}", disable=verbose):
                 self._training_step(samples, labels)
             self._log_training_metrics(epoch)
 
-            for validation_samples, validation_labels in tqdm(prepared_validation_ds.batch(self.batch_size), desc=f"Validation - Epoch: {epoch}"):
+            for validation_samples, validation_labels in tqdm(prepared_validation_ds.batch(self.batch_size), desc=f"Validation - Epoch: {epoch}", disable=verbose):
                 self._validation_step(validation_samples, validation_labels)
             self._log_validation_metrics(epoch)
 
             new_best = self._save_best_model()
-            self._print_metrics()
+
+            if not verbose:
+                self._print_metrics()
 
             if new_best:
                 self._best_epoch = epoch
 
             # stop the training if there was no improvement for a too long time
             if (epoch - self._best_epoch) == self._early_stopping_patience:
-                print(f"Early stopping after epoch {epoch} - last improvement was in epoch {self._best_epoch}")
+                print(f"Early stopping after epoch {epoch} - last improvement was in epoch {self._best_epoch} with {self._best_main_metric_result}")
                 break
 
     def get_model(self, best: bool = False) -> tf.keras.Model:

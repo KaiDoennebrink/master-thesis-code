@@ -54,12 +54,6 @@ class InitializationStrategyExperiment:
     - Representation clustering selection with representations from a model trained on another dataset
     """
 
-    RANDOM_EXPERIMENT_ID = "random"
-    PT4AL_ONE_EXPERIMENT_ID = "pt4al_one"
-    PT4AL_TEN_EXPERIMENT_ID = "pt4al_ten"
-    REP_CLUSTER__PRETEXT_EXPERIMENT_ID = "rep_cluster_pretext"
-    REP_CLUSTER_TL_EXPERIMENT_ID = "rep_cluster_tl"
-
     def __init__(self, model_dir: Path = Path("./models"), log_dir: Path = Path("./logs/experiments/init_strategy"),
                  pretext_model_base_name: str = "PretextInception", transfer_learning_model_name: str =
                  "ICBEBInception", initial_samples: int = 300, saved_data_base_dir: str | Path =

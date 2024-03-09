@@ -11,7 +11,9 @@ class RandomQueryStrategy:
     def __init__(self):
         self._rng = np.random.default_rng()
 
-    def select_samples(self, num_of_samples: int, unlabeled_indices: Set[int]) -> Set[int]:
+    def select_samples(
+        self, num_of_samples: int, unlabeled_indices: Set[int]
+    ) -> Set[int]:
         """
         Selects random samples from the pool of unlabeled samples.
 
@@ -21,4 +23,6 @@ class RandomQueryStrategy:
         Returns:
             A set of selected sample indices.
         """
-        return set(self._rng.choice(list(unlabeled_indices), num_of_samples, replace=False))
+        return set(
+            self._rng.choice(list(unlabeled_indices), num_of_samples, replace=False)
+        )

@@ -12,11 +12,30 @@ class MultiLabelTimeSeriesTrainer(BaseTrainer):
     The training data set is augmented during training. Furthermore, the validation is based on sliding windows.
     """
 
-    def __init__(self, model: keras.Model, model_name: str, num_labels: int, batch_size: int = 256, epochs: int = 50,
-                 keep_best_model: bool = True, model_base_dir: str = "./models", log_base_dir: str = "./logs",
-                 crop_length: int = 250, learning_rate: float = 1e-3, weight_decay: float = 1e-2):
+    def __init__(
+        self,
+        model: keras.Model,
+        model_name: str,
+        num_labels: int,
+        batch_size: int = 256,
+        epochs: int = 50,
+        keep_best_model: bool = True,
+        model_base_dir: str = "./models",
+        log_base_dir: str = "./logs",
+        crop_length: int = 250,
+        learning_rate: float = 1e-3,
+        weight_decay: float = 1e-2,
+    ):
         """Initializes a trainer."""
-        super().__init__(model, model_name, batch_size, epochs, keep_best_model, model_base_dir,  log_base_dir)
+        super().__init__(
+            model,
+            model_name,
+            batch_size,
+            epochs,
+            keep_best_model,
+            model_base_dir,
+            log_base_dir,
+        )
         self.crop_length = crop_length
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
@@ -27,7 +46,9 @@ class MultiLabelTimeSeriesTrainer(BaseTrainer):
         Returns a random crop from each sample in the dataset.
         """
         # do not use buffer_size=dataset.cardinality() here to prevent the loading of the full dataset into memory
-        cropped_dataset = dataset.map(lambda x, y: (random_crop(x, self.crop_length), y))
+        cropped_dataset = dataset.map(
+            lambda x, y: (random_crop(x, self.crop_length), y)
+        )
         return super()._get_training_dataset(cropped_dataset)
 
     @tf.function
@@ -35,7 +56,9 @@ class MultiLabelTimeSeriesTrainer(BaseTrainer):
         """Custom validation step that calculates the loss and accuracy of the model over the sliding windows."""
         sliding_window_predictions = []
         for sliding_window in time_series_batch:
-            sliding_window_predictions.append(self.model(sliding_window, training=False))
+            sliding_window_predictions.append(
+                self.model(sliding_window, training=False)
+            )
 
         predictions = tf.reduce_max(sliding_window_predictions, axis=0)
         loss = self._loss_object(label_batch, predictions)
@@ -47,11 +70,17 @@ class MultiLabelTimeSeriesTrainer(BaseTrainer):
         """Initializes the training and validation metrics."""
         self._train_loss = keras.metrics.Mean(name="train_loss")
         self._train_accuracy = keras.metrics.BinaryAccuracy(name="train_accuracy")
-        self._train_auc = keras.metrics.AUC(multi_label=True, name="train_auc", num_labels=self.num_labels)
+        self._train_auc = keras.metrics.AUC(
+            multi_label=True, name="train_auc", num_labels=self.num_labels
+        )
 
         self._validation_loss = keras.metrics.Mean(name="validation_loss")
-        self._validation_accuracy = keras.metrics.BinaryAccuracy(name="validation_accuracy")
-        self._validation_auc = keras.metrics.AUC(multi_label=True, name="validation_auc", num_labels=self.num_labels)
+        self._validation_accuracy = keras.metrics.BinaryAccuracy(
+            name="validation_accuracy"
+        )
+        self._validation_auc = keras.metrics.AUC(
+            multi_label=True, name="validation_auc", num_labels=self.num_labels
+        )
 
     def _reset_metrics(self):
         """Resets the training and validation metric states."""
@@ -69,20 +98,31 @@ class MultiLabelTimeSeriesTrainer(BaseTrainer):
         return keras.losses.BinaryCrossentropy()
 
     def _get_optimizer(self) -> keras.optimizers.Optimizer:
-        return keras.optimizers.Adam(learning_rate=self.learning_rate, weight_decay=self.weight_decay)
+        return keras.optimizers.Adam(
+            learning_rate=self.learning_rate, weight_decay=self.weight_decay
+        )
 
     def _log_training_metrics(self, epoch: int):
         """Logs the training metric values."""
-        self._log_metrics(epoch,
-                          self._train_summary_writer, metrics=[self._train_loss, self._train_accuracy, self._train_auc],
-                          metric_names=["loss", "accuracy", "AUC"])
+        self._log_metrics(
+            epoch,
+            self._train_summary_writer,
+            metrics=[self._train_loss, self._train_accuracy, self._train_auc],
+            metric_names=["loss", "accuracy", "AUC"],
+        )
 
     def _log_validation_metrics(self, epoch: int):
         """Logs the validation metric values."""
-        self._log_metrics(epoch,
-                          self._validation_summary_writer, 
-                          metrics=[self._validation_loss, self._validation_accuracy, self._validation_auc],
-                          metric_names=["loss", "accuracy", "AUC"])
+        self._log_metrics(
+            epoch,
+            self._validation_summary_writer,
+            metrics=[
+                self._validation_loss,
+                self._validation_accuracy,
+                self._validation_auc,
+            ],
+            metric_names=["loss", "accuracy", "AUC"],
+        )
 
     def _print_metrics(self):
         print(

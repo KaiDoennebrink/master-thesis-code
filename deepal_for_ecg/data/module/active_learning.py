@@ -10,17 +10,18 @@ class PTBXLActiveLearningDataModule:
     It provides the labeled and unlabeled data for the active learning process, keeps track of the queried instances,
     and can augment the samples.
     """
+
     NUM_CLASSES = 90
 
     def __init__(
-            self,
-            train_samples: np.ndarray,
-            val_samples: np.ndarray,
-            test_samples: np.ndarray,
-            train_labels_ptb_xl: np.ndarray,
-            train_labels_12sl: np.ndarray,
-            val_labels: np.ndarray,
-            test_labels: np.ndarray
+        self,
+        train_samples: np.ndarray,
+        val_samples: np.ndarray,
+        test_samples: np.ndarray,
+        train_labels_ptb_xl: np.ndarray,
+        train_labels_12sl: np.ndarray,
+        val_labels: np.ndarray,
+        test_labels: np.ndarray,
     ):
         """Initializes the data module with the previously loaded data."""
         self._train_samples = train_samples
@@ -41,24 +42,30 @@ class PTBXLActiveLearningDataModule:
     def state_dict(self):
         """Returns the indices of the currently labeled and unlabeled samples."""
         return {
-            'unlabeled_indices': self._unlabeled_indices,
-            'labeled_indices_ptb_xl': self._labeled_indices_ptb_xl,
-            'labeled_indices_12sl': self._labeled_indices_12sl
+            "unlabeled_indices": self._unlabeled_indices,
+            "labeled_indices_ptb_xl": self._labeled_indices_ptb_xl,
+            "labeled_indices_12sl": self._labeled_indices_12sl,
         }
 
     def update_annotations(self, buy_idx_ptb_xl: set, buy_idx_12sl: set):
         """Updates the labeled pool with newly annotated instances."""
-        self._labeled_indices_ptb_xl = self._labeled_indices_ptb_xl.union(buy_idx_ptb_xl)
+        self._labeled_indices_ptb_xl = self._labeled_indices_ptb_xl.union(
+            buy_idx_ptb_xl
+        )
         self._labeled_indices_12sl = self._labeled_indices_12sl.union(buy_idx_12sl)
-        self._unlabeled_indices = self._unlabeled_indices.difference(buy_idx_ptb_xl.union(buy_idx_12sl))
+        self._unlabeled_indices = self._unlabeled_indices.difference(
+            buy_idx_ptb_xl.union(buy_idx_12sl)
+        )
 
     @property
     def validation_dataset(self) -> tf.data.Dataset:
         if self._validation_dataset is None:
             self._validation_dataset = tf.data.Dataset.from_tensor_slices(
                 (
-                    generate_sliding_window(self._val_samples, window_size=250, stride=125),
-                    self._val_labels
+                    generate_sliding_window(
+                        self._val_samples, window_size=250, stride=125
+                    ),
+                    self._val_labels,
                 )
             )
         return self._validation_dataset
@@ -68,8 +75,10 @@ class PTBXLActiveLearningDataModule:
         if self._test_dataset is None:
             self._test_dataset = tf.data.Dataset.from_tensor_slices(
                 (
-                    generate_sliding_window(self._test_samples, window_size=250, stride=125),
-                    self._test_labels
+                    generate_sliding_window(
+                        self._test_samples, window_size=250, stride=125
+                    ),
+                    self._test_labels,
                 )
             )
         return self._test_dataset

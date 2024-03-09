@@ -8,7 +8,10 @@ from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 from tqdm import tqdm
 
 from deepal_for_ecg.data.loader.base import BaseDataLoader
-from deepal_for_ecg.data.loader.util import resample_multichannel_signal, apply_standardizer
+from deepal_for_ecg.data.loader.util import (
+    resample_multichannel_signal,
+    apply_standardizer,
+)
 
 
 class ICBEBDataLoader(BaseDataLoader):
@@ -23,8 +26,12 @@ class ICBEBDataLoader(BaseDataLoader):
     - Multi-label encoding of the labels
     """
 
-    def __init__(self, load_saved_data: bool = False, saved_data_base_dir: str | Path = Path("./data/saved/icbeb"),
-                 raw_data_base_dir: str | Path = Path("./data/raw/icbeb_2018")):
+    def __init__(
+        self,
+        load_saved_data: bool = False,
+        saved_data_base_dir: str | Path = Path("./data/saved/icbeb"),
+        raw_data_base_dir: str | Path = Path("./data/raw/icbeb_2018"),
+    ):
         super().__init__(load_saved_data, saved_data_base_dir, raw_data_base_dir)
 
         self.X_train = None
@@ -68,10 +75,12 @@ class ICBEBDataLoader(BaseDataLoader):
             "Y_train": self.Y_train,
             "Y_val": self.Y_val,
             "mlb": self._mlb,
-            "scaler": self._scaler
+            "scaler": self._scaler,
         }
 
-    def _load_samples(self, sample_kind: str = "training", orig_frequency: int = 500) -> Tuple[List[np.ndarray], Set[str]]:
+    def _load_samples(
+        self, sample_kind: str = "training", orig_frequency: int = 500
+    ) -> Tuple[List[np.ndarray], Set[str]]:
         """
         Loads the given samples from the ICBEB dataset and resamples them at 100Hz.
 
@@ -86,11 +95,17 @@ class ICBEBDataLoader(BaseDataLoader):
             data = loadmat(str(Path(signal_dir, f"{recording}.mat")))
             ecg_signal = data["ECG"][0]["data"][0].T
             if ecg_signal.shape[0] >= 10 * orig_frequency:
-                recordings.append(resample_multichannel_signal(ecg_signal, orig_frequency=orig_frequency, target_frequency=100))
+                recordings.append(
+                    resample_multichannel_signal(
+                        ecg_signal, orig_frequency=orig_frequency, target_frequency=100
+                    )
+                )
                 label_idx.append(recording)
         return recordings, set(label_idx)
 
-    def _load_labels(self, indices: Set[str], sample_kind: str = "training") -> List[List[int]]:
+    def _load_labels(
+        self, indices: Set[str], sample_kind: str = "training"
+    ) -> List[List[int]]:
         """
         Loads the given labels from the ICBEB dataset.
 
@@ -141,8 +156,8 @@ class ICBEBDataLoader(BaseDataLoader):
         for s in signals:
             signal_length = s.shape[0]
             if signal_length > 1000:
-                start_idx = rng.integers(signal_length-1000)
-                shorten_signals.append(s[start_idx:start_idx+1000])
+                start_idx = rng.integers(signal_length - 1000)
+                shorten_signals.append(s[start_idx : start_idx + 1000])
             else:
                 shorten_signals.append(s)
         return np.array(shorten_signals)
@@ -150,7 +165,9 @@ class ICBEBDataLoader(BaseDataLoader):
     def _standardize(self):
         """Standardize the data such that mean is zero and variance one."""
         self._scaler = StandardScaler()
-        self._scaler.fit(np.vstack(self._train_samples).flatten()[:, np.newaxis].astype(np.float32))
+        self._scaler.fit(
+            np.vstack(self._train_samples).flatten()[:, np.newaxis].astype(np.float32)
+        )
 
         self.X_train = apply_standardizer(self._train_samples, self._scaler)
         self.X_val = apply_standardizer(self._val_samples, self._scaler)

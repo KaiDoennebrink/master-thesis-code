@@ -5,6 +5,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
+from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.models.classification_heads import BasicClassificationHeadConfig, simple_multi_label_classification_head
 
 
@@ -33,7 +34,7 @@ class InceptionNetworkConfig:
             BasicClassificationHEadConfig object.
     """
     input_shape: Tuple[int, int] = (250, 12)
-    num_classes: int | None = 93
+    num_classes: int | None = PTBXLActiveLearningDataModule.NUM_CLASSES
     num_filters: int = 32
     bottleneck_size: int = 32
     use_residual: bool = True

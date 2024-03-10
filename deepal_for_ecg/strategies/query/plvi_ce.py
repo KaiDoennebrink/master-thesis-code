@@ -176,14 +176,13 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
     @log_durations(print, threshold=0.5)
     def _calc_rbf_distances(self, sigma: float) -> np.ndarray:
-        rbf_distances = np.zeros((self._num_unlabeled_samples, self._num_labeled_samples))
-        for i in range(self._num_unlabeled_samples):
-            for j in range(self._num_labeled_samples):
-                dist = self._rbf_distance(
-                    self._representation_of_unlabeled_samples[i], self._representation_of_labeled_samples[j], sigma
-                )
-                rbf_distances[i, j] = dist
-        return rbf_distances
+        x = self._representation_of_unlabeled_samples
+        y = self._representation_of_labeled_samples
+        # I use here the l2-distance here instead of the l1-distance and use the fact that ||x-y||^2 = ||x||^2 + ||y||^2 - 2 * x^T * y
+        # TODO: maybe use numexpr package for faster calculation
+        x_norm = np.sum(x ** 2, axis=-1)
+        y_norm = np.sum(y ** 2, axis=-1)
+        return np.exp((x_norm[:,None] + y_norm[None,:] - 2 * np.dot(x, y.T))/(-2 * sigma**2))
 
     def _calc_neighborhood_size(self):
         return np.ceil(np.sqrt(self._num_labeled_samples)).astype(int)

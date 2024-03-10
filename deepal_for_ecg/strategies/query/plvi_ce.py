@@ -45,7 +45,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         self._num_unlabeled_samples = None
         self._num_labels = None
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def select_samples(
         self,
         num_of_samples: int,
@@ -72,7 +72,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             The selected sample indices.
         """
         # prepare the current selection
-        logger.info("Start selecting samples")
+        print("Start selecting samples")
         self._model = model
         self._representation_model = get_representation_part_of_model(self._model)
         self._set_predictions(data_module)
@@ -111,7 +111,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
                 selected_samples.add(int(orig_cluster_point_indices[nearest_point_idx]))
             return selected_samples
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _calc_uncertainty(self) -> np.ndarray:
         """
         Calculates the uncertainty of each unlabeled sample by comparing the current prediction with a propagated label.
@@ -122,7 +122,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             self._pred_of_unlabeled_samples - propagated_labels, axis=1
         )
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _calc_diversity(self) -> np.ndarray:
         """
         Calculates the diversity of each unlabeled sample by taking the cross entropy between each unlabeled sample
@@ -140,7 +140,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         # Adjust the calculation and return the result
         return -d / (self._num_labels * self._num_labeled_samples)
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _propagate_labels(self) -> np.ndarray:
         """
         Propagate labels by selecting the neighborhood of each unlabeled sample, using the labels of the labeled samples
@@ -159,7 +159,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
         soft_label_propagation = self._propagate_soft_label(rbf_distances, knn_indices)
         # calculate the average label cardinality of each neighborhood
-        # TODO: Discuss whether to use a global label cardinality like in the paper or a neighborhood specific.
+        # TODO: Discuss whether to use a global label cardinality like the paper or a neighborhood specific.
         average_label_cardinality_of_neighborhood = np.ceil(
             np.sum(self._labeled_labels[knn_indices[:], :], axis=(1, 2)) / k
         ).astype(int)
@@ -173,7 +173,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             hard_label_propagation[i, sorted_confidence_idx[i, 0:average_label_cardinality_of_neighborhood[i]]] = 1
         return hard_label_propagation
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _calc_rbf_distances(self, sigma: float) -> np.ndarray:
         rbf_distances = np.zeros((self._num_unlabeled_samples, self._num_labeled_samples))
         for i in range(self._num_unlabeled_samples):
@@ -188,7 +188,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
     def _calc_neighborhood_size(self):
         return np.ceil(np.sqrt(self._num_labeled_samples)).astype(int)
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _propagate_soft_label(
         self, rbf_distances: np.ndarray, knn_indices: np.ndarray
     ) -> np.ndarray:
@@ -203,12 +203,14 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             )
         return soft_label_propagation
 
+    @log_durations(print, threshold=0.5)
     def _rbf_distance(self, x: np.ndarray, y: np.ndarray, sigma: float):
         """Calculates the RBF distance between two datapoints."""
         diff = x - y
         rbf_distance = np.exp(np.sum(diff**2) / (-2 * sigma**2))
         return rbf_distance
 
+    @log_durations(print, threshold=0.5)
     def _calc_sigma(self):
         """
         Calculates the value of sigma for the current data.
@@ -224,7 +226,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         num_divisor = (self._num_labeled_samples * (self._num_labeled_samples - 1)) / 2
         return np.sum(dist_list) / num_divisor
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _set_predictions(self, data_module: PTBXLActiveLearningDataModule):
         _pred_of_unlabeled_samples = []
 
@@ -237,6 +239,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             data_module.labeled_sliding_window_sample_dataset
         )
 
+    @log_durations(print, threshold=0.5)
     def _get_sliding_window_predictions(self, sliding_window_ds: tf.data.Dataset):
         pred = []
         for batch in sliding_window_ds.batch(128):
@@ -252,7 +255,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
         return tf.reduce_max(sliding_window_predictions, axis=0).numpy()
 
-    @log_durations(logger.info, threshold=0.5)
+    @log_durations(print, threshold=0.5)
     def _set_data(self, data_loader: PTBXLDataLoader, state: Dict[str, Set]):
         self._unlabeled_indices = list(state["unlabeled_indices"])
         self._labeled_indices = list(state["labeled_indices_ptb_xl"])
@@ -264,6 +267,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         self._num_unlabeled_samples = self._unlabeled_samples.shape[0]
         self._num_labels = self._labeled_labels.shape[1]
 
+    @log_durations(print, threshold=0.5)
     def _get_representations(self, sliding_window_ds: tf.data.Dataset) -> np.ndarray:
         """
         Gets the mean representations of each sample in the dataset.

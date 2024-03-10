@@ -64,6 +64,13 @@ class PTBXLActiveLearningDataModule:
         """Prepares the training data to be used with sliding windows."""
         self._sliding_window_training_samples = generate_sliding_window(self._train_samples, window_size=250, stride=125)
 
+    def calculate_label_coverage_ptbxl(self):
+        """Calculates the label coverage of the currently selected PTB-XL instances."""
+        selected_indices = list(self._labeled_indices_ptb_xl)
+        selected_labels = self._train_labels_ptb_xl[selected_indices]
+        samples_per_label = np.sum(selected_labels, axis=0)
+        return np.sum(samples_per_label >= 1) / PTBXLActiveLearningDataModule.NUM_CLASSES
+
     @property
     def validation_dataset(self) -> tf.data.Dataset:
         if self._validation_dataset is None:

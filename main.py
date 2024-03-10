@@ -14,6 +14,8 @@ from deepal_for_ecg.data.module.tranformation_recognition import (
 from deepal_for_ecg.experiments.initialization_strategy import (
     InitializationStrategyExperiment,
 )
+from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, SelectionStrategyExperimentConfig, \
+    SelectionStrategyExperiment
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import (
     InceptionNetworkConfig,
@@ -37,6 +39,16 @@ def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 
     experiment = InitializationStrategyExperiment(
         runs_per_strategy=runs_per_strategy, initial_samples=initial_samples
     )
+    experiment.run()
+
+
+@app.command()
+def single_selection_experiment(strategy: SelectionStrategy, experiment_name: str):
+    config = SelectionStrategyExperimentConfig(
+        name=experiment_name,
+        strategy=strategy
+    )
+    experiment = SelectionStrategyExperiment(config=config)
     experiment.run()
 
 

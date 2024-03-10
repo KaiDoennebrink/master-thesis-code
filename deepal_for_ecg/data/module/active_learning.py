@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import tensorflow as tf
 
@@ -38,6 +40,7 @@ class PTBXLActiveLearningDataModule:
 
         self._validation_dataset = None
         self._test_dataset = None
+        self._sliding_window_training_samples = None
 
     def state_dict(self):
         """Returns the indices of the currently labeled and unlabeled samples."""
@@ -56,6 +59,10 @@ class PTBXLActiveLearningDataModule:
         self._unlabeled_indices = self._unlabeled_indices.difference(
             buy_idx_ptb_xl.union(buy_idx_12sl)
         )
+
+    def prepare_sliding_windows_data(self):
+        """Prepares the training data to be used with sliding windows."""
+        self._sliding_window_training_samples = generate_sliding_window(self._train_samples, window_size=250, stride=125)
 
     @property
     def validation_dataset(self) -> tf.data.Dataset:
@@ -108,3 +115,21 @@ class PTBXLActiveLearningDataModule:
         """
         indices = list(self._unlabeled_indices)
         return tf.data.Dataset.from_tensor_slices((self._train_samples[indices]))
+
+    @property
+    def unlabeled_sliding_window_sample_dataset(self) -> tf.data.Dataset:
+        """Constructs and returns the current unlabeled dataset as a sliding window dataset."""
+        indices = list(self._unlabeled_indices)
+        return self._get_sliding_window_dataset(indices)
+
+    @property
+    def labeled_sliding_window_sample_dataset(self) -> tf.data.Dataset:
+        """Constructs and returns the current labeled dataset as a sliding window dataset."""
+        indices = list(self._labeled_indices_ptb_xl.union(self._labeled_indices_12sl))
+        return self._get_sliding_window_dataset(indices)
+
+    def _get_sliding_window_dataset(self, indices: List[int]) -> tf.data.Dataset:
+        if self._sliding_window_training_samples is None:
+            self.prepare_sliding_windows_data()
+        labeled_data = tuple([sample[indices] for sample in self._sliding_window_training_samples])
+        return tf.data.Dataset.from_tensor_slices(labeled_data)

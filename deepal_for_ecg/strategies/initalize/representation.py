@@ -6,6 +6,7 @@ from sklearn.cluster import KMeans
 from tensorflow import keras
 
 from deepal_for_ecg.data.augmentation import random_crop
+from deepal_for_ecg.models.util import get_representation_part_of_model
 
 
 class RepresentationClusteringInitQueryStrategy:
@@ -30,7 +31,7 @@ class RepresentationClusteringInitQueryStrategy:
         augmentation_kwargs: dict | None = None,
     ):
         self._pretrained_model = pretrained_model
-        self._representation_model = self._get_representation_part_of_model()
+        self._representation_model = get_representation_part_of_model(self._pretrained_model)
         self._num_clusters = num_clusters
         self._kmeans = KMeans(n_clusters=self._num_clusters)
         self._augmentation_method = augmentation_method

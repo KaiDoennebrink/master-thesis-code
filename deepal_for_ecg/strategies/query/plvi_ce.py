@@ -5,6 +5,7 @@ from funcy import log_durations
 import numpy as np
 import tensorflow as tf
 from sklearn.cluster import KMeans
+from scipy.spatial import distance
 from tensorflow import keras
 
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
@@ -35,15 +36,18 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         self._representation_model = None
         self._pred_of_unlabeled_samples = None
         self._pred_of_labeled_samples = None
+        self._representation_of_unlabeled_samples = None
+        self._representation_of_labeled_samples = None
+
         self._unlabeled_indices = None
         self._labeled_indices = None
-        self._unlabeled_samples = None
-        self._labeled_samples = None
         self._labeled_labels = None
 
         self._num_labeled_samples = None
         self._num_unlabeled_samples = None
         self._num_labels = None
+
+        self._batch_size = 256
 
     @log_durations(print, threshold=0.5)
     def select_samples(
@@ -76,6 +80,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         self._model = model
         self._representation_model = get_representation_part_of_model(self._model)
         self._set_predictions(data_module)
+        self._set_representations(data_module)
         self._set_data(data_loader, data_module.state_dict())
 
         # get the measures
@@ -95,20 +100,19 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             return set(query_indices)
         else:
             # k-means clustering of representations
-            # get the representations from the sliding windows of the unlabeled data points
-            unlabeled_sample_representation = self._get_representations(data_module.unlabeled_sliding_window_sample_dataset)
             kmeans = KMeans(n_clusters=num_of_samples)
-            kmeans.fit(unlabeled_sample_representation)
+            kmeans.fit(self._representation_of_unlabeled_samples)
             # get from each cluster the top sample
             cluster_labels = kmeans.labels_
-            orig_indices = np.arange(len(cluster_labels), dtype=int)
+            full_cluster_indices = np.arange(self._num_unlabeled_samples, dtype=int)
             selected_samples = set()
+            # TODO: Fix returned indices
             for center_idx, _ in enumerate(kmeans.cluster_centers_):
                 cluster_selection_condition = cluster_labels == center_idx
-                orig_cluster_point_indices = orig_indices[cluster_selection_condition]
+                cluster_indices = full_cluster_indices[cluster_selection_condition]
                 cluster_selection_criteria = selection_criteria[cluster_selection_condition]
-                nearest_point_idx = np.argmax(cluster_selection_criteria)
-                selected_samples.add(int(orig_cluster_point_indices[nearest_point_idx]))
+                max_index = np.argmax(cluster_selection_criteria)
+                selected_samples.add(int(self._unlabeled_indices[cluster_indices[max_index]]))
             return selected_samples
 
     @log_durations(print, threshold=0.5)
@@ -175,15 +179,12 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
     @log_durations(print, threshold=0.5)
     def _calc_rbf_distances(self, sigma: float) -> np.ndarray:
-        rbf_distances = np.zeros((self._num_unlabeled_samples, self._num_labeled_samples))
-        for i in range(self._num_unlabeled_samples):
-            for j in range(i, self._num_labeled_samples):
-                dist = self._rbf_distance(
-                    self._unlabeled_samples[i], self._labeled_samples[j], sigma
-                )
-                rbf_distances[i, j] = dist
-                rbf_distances[j, i] = dist
-        return rbf_distances
+        x = self._representation_of_unlabeled_samples
+        y = self._representation_of_labeled_samples
+        # I use here the l2-distance here instead of the l1-distance and use the fact that |x-y|^2 = |x|^2 + |y|^2 - 2 * x^T * y
+        x_norm = np.sum(x ** 2, axis=-1)
+        y_norm = np.sum(y ** 2, axis=-1)
+        return np.exp((x_norm[:, None] + y_norm[None, :] - 2 * np.dot(x, y.T))/(-2 * sigma**2))
 
     def _calc_neighborhood_size(self):
         return np.ceil(np.sqrt(self._num_labeled_samples)).astype(int)
@@ -216,15 +217,9 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         Calculates the value of sigma for the current data.
         Sigma is used during the calculation of the RDF distances.
         """
-        dist_list = []
-        for i in range(self._num_labeled_samples - 1):
-            for j in range(i + 1, self._num_labeled_samples):
-                dist = np.linalg.norm(
-                    self._labeled_samples[i] - self._labeled_samples[j]
-                )
-                dist_list.append(dist)
+        d = distance.cdist(self._representation_of_labeled_samples, self._representation_of_labeled_samples)
         num_divisor = (self._num_labeled_samples * (self._num_labeled_samples - 1)) / 2
-        return np.sum(dist_list) / num_divisor
+        return np.sum(np.triu(d, k=1)) / num_divisor
 
     @log_durations(print, threshold=0.5)
     def _set_predictions(self, data_module: PTBXLActiveLearningDataModule):
@@ -240,9 +235,16 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         )
 
     @log_durations(print, threshold=0.5)
+    def _set_representations(self, data_module: PTBXLActiveLearningDataModule):
+        self._representation_of_unlabeled_samples = self._get_representations(
+            data_module.unlabeled_sliding_window_sample_dataset)
+        self._representation_of_labeled_samples = self._get_representations(
+            data_module.labeled_sliding_window_sample_dataset)
+
+    @log_durations(print, threshold=0.5)
     def _get_sliding_window_predictions(self, sliding_window_ds: tf.data.Dataset):
         pred = []
-        for batch in sliding_window_ds.batch(128):
+        for batch in sliding_window_ds.batch(self._batch_size):
             pred.append(self._aggregate_sliding_window_predictions(batch))
         return np.concatenate(pred, axis=0)
 
@@ -259,12 +261,10 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
     def _set_data(self, data_loader: PTBXLDataLoader, state: Dict[str, Set]):
         self._unlabeled_indices = list(state["unlabeled_indices"])
         self._labeled_indices = list(state["labeled_indices_ptb_xl"])
-        self._unlabeled_samples = data_loader.X_train[self._unlabeled_indices]
-        self._labeled_samples = data_loader.X_train[self._labeled_indices]
         self._labeled_labels = data_loader.Y_train_ptb_xl[self._labeled_indices]
 
-        self._num_labeled_samples = self._labeled_samples.shape[0]
-        self._num_unlabeled_samples = self._unlabeled_samples.shape[0]
+        self._num_labeled_samples = self._representation_of_labeled_samples.shape[0]
+        self._num_unlabeled_samples = self._representation_of_unlabeled_samples.shape[0]
         self._num_labels = self._labeled_labels.shape[1]
 
     @log_durations(print, threshold=0.5)
@@ -278,7 +278,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             representation dimension]
         """
         all_sample_representation = []
-        for sample_batch in sliding_window_ds.batch(128):
+        for sample_batch in sliding_window_ds.batch(self._batch_size):
             sliding_window_predictions = []
             for sliding_window in sample_batch:
                 sliding_window_predictions.append(

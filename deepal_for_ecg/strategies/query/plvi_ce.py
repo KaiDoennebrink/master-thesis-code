@@ -217,15 +217,9 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         Calculates the value of sigma for the current data.
         Sigma is used during the calculation of the RDF distances.
         """
-        dist_list = []
-        for i in range(self._num_labeled_samples - 1):
-            for j in range(i + 1, self._num_labeled_samples):
-                dist = np.linalg.norm(
-                    self._representation_of_labeled_samples[i] - self._representation_of_labeled_samples[j]
-                )
-                dist_list.append(dist)
+        d = distance.cdist(self._representation_of_labeled_samples, self._representation_of_labeled_samples)
         num_divisor = (self._num_labeled_samples * (self._num_labeled_samples - 1)) / 2
-        return np.sum(dist_list) / num_divisor
+        return np.sum(np.triu(d, k=1)) / num_divisor
 
     @log_durations(print, threshold=0.5)
     def _set_predictions(self, data_module: PTBXLActiveLearningDataModule):

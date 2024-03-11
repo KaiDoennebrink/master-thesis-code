@@ -101,15 +101,17 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             kmeans.fit(self._representation_of_unlabeled_samples)
             # get from each cluster the top sample
             cluster_labels = kmeans.labels_
-            orig_indices = np.arange(len(cluster_labels), dtype=int)
+            full_cluster_indices = np.arange(self._num_unlabeled_samples, dtype=int)
             selected_samples = set()
             # TODO: Fix returned indices
             for center_idx, _ in enumerate(kmeans.cluster_centers_):
                 cluster_selection_condition = cluster_labels == center_idx
-                orig_cluster_point_indices = orig_indices[cluster_selection_condition]
+                cluster_indices = full_cluster_indices[cluster_selection_condition]
                 cluster_selection_criteria = selection_criteria[cluster_selection_condition]
                 nearest_point_idx = np.argmax(cluster_selection_criteria)
                 selected_samples.add(int(orig_cluster_point_indices[nearest_point_idx]))
+                max_index = np.argmax(cluster_selection_criteria)
+                selected_samples.add(int(self._unlabeled_indices[cluster_indices[max_index]]))
             return selected_samples
 
     @log_durations(print, threshold=0.5)
@@ -219,7 +221,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         for i in range(self._num_labeled_samples - 1):
             for j in range(i + 1, self._num_labeled_samples):
                 dist = np.linalg.norm(
-                    self._representation_of_unlabeled_samples[i] - self._representation_of_labeled_samples[j]
+                    self._representation_of_labeled_samples[i] - self._representation_of_labeled_samples[j]
                 )
                 dist_list.append(dist)
         num_divisor = (self._num_labeled_samples * (self._num_labeled_samples - 1)) / 2

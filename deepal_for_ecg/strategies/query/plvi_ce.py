@@ -47,6 +47,8 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
         self._num_unlabeled_samples = None
         self._num_labels = None
 
+        self._batch_size = 256
+
     @log_durations(print, threshold=0.5)
     def select_samples(
         self,
@@ -109,8 +111,6 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
                 cluster_selection_condition = cluster_labels == center_idx
                 cluster_indices = full_cluster_indices[cluster_selection_condition]
                 cluster_selection_criteria = selection_criteria[cluster_selection_condition]
-                nearest_point_idx = np.argmax(cluster_selection_criteria)
-                selected_samples.add(int(orig_cluster_point_indices[nearest_point_idx]))
                 max_index = np.argmax(cluster_selection_criteria)
                 selected_samples.add(int(self._unlabeled_indices[cluster_indices[max_index]]))
             return selected_samples
@@ -181,11 +181,10 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
     def _calc_rbf_distances(self, sigma: float) -> np.ndarray:
         x = self._representation_of_unlabeled_samples
         y = self._representation_of_labeled_samples
-        # I use here the l2-distance here instead of the l1-distance and use the fact that ||x-y||^2 = ||x||^2 + ||y||^2 - 2 * x^T * y
-        # TODO: maybe use numexpr package for faster calculation
+        # I use here the l2-distance here instead of the l1-distance and use the fact that |x-y|^2 = |x|^2 + |y|^2 - 2 * x^T * y
         x_norm = np.sum(x ** 2, axis=-1)
         y_norm = np.sum(y ** 2, axis=-1)
-        return np.exp((x_norm[:,None] + y_norm[None,:] - 2 * np.dot(x, y.T))/(-2 * sigma**2))
+        return np.exp((x_norm[:, None] + y_norm[None, :] - 2 * np.dot(x, y.T))/(-2 * sigma**2))
 
     def _calc_neighborhood_size(self):
         return np.ceil(np.sqrt(self._num_labeled_samples)).astype(int)
@@ -245,7 +244,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
     @log_durations(print, threshold=0.5)
     def _get_sliding_window_predictions(self, sliding_window_ds: tf.data.Dataset):
         pred = []
-        for batch in sliding_window_ds.batch(128):
+        for batch in sliding_window_ds.batch(self._batch_size):
             pred.append(self._aggregate_sliding_window_predictions(batch))
         return np.concatenate(pred, axis=0)
 
@@ -279,7 +278,7 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             representation dimension]
         """
         all_sample_representation = []
-        for sample_batch in sliding_window_ds.batch(128):
+        for sample_batch in sliding_window_ds.batch(self._batch_size):
             sliding_window_predictions = []
             for sliding_window in sample_batch:
                 sliding_window_predictions.append(

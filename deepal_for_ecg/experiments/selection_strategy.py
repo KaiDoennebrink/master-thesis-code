@@ -127,6 +127,7 @@ class SelectionStrategyExperiment:
         coverage = self._data_module.calculate_label_coverage_ptbxl()
         self._coverage_results.append(coverage)
         print(f"{coverage = }")
+        print(f"labeled samples: {len(self._data_module.state_dict()['labeled_indices_ptb_xl'])}")
         print(f"sampling took {sampling_time:.4f} seconds")
 
         self._print_step("training")

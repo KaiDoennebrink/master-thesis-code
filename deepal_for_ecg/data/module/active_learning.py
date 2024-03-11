@@ -24,6 +24,7 @@ class PTBXLActiveLearningDataModule:
         train_labels_12sl: np.ndarray,
         val_labels: np.ndarray,
         test_labels: np.ndarray,
+        warning_mode_activated: bool = True
     ):
         """Initializes the data module with the previously loaded data."""
         self._train_samples = train_samples
@@ -33,6 +34,7 @@ class PTBXLActiveLearningDataModule:
         self._train_labels_12sl = train_labels_12sl
         self._val_labels = val_labels
         self._test_labels = test_labels
+        self._warning_mode_activated = warning_mode_activated
 
         self._unlabeled_indices = set(range(len(self._train_samples)))
         self._labeled_indices_ptb_xl = set()
@@ -52,6 +54,16 @@ class PTBXLActiveLearningDataModule:
 
     def update_annotations(self, buy_idx_ptb_xl: set, buy_idx_12sl: set):
         """Updates the labeled pool with newly annotated instances."""
+        if self._warning_mode_activated:
+            # check whether some labels are already present
+            intersection_ptbxl = buy_idx_ptb_xl.intersection(self._labeled_indices_ptb_xl)
+            if len(intersection_ptbxl) > 0:
+                print(f"WARNING: {len(intersection_ptbxl)} samples are already labeled with PTB-XL")
+                print(f"indices: {intersection_ptbxl }")
+            intersection_12sl = buy_idx_12sl.intersection(self._labeled_indices_12sl)
+            if len(intersection_12sl) > 0:
+                print(f"WARNING: {len(intersection_12sl)} samples are already labeled with 12SL")
+                print(f"indices: {intersection_12sl}")
         self._labeled_indices_ptb_xl = self._labeled_indices_ptb_xl.union(
             buy_idx_ptb_xl
         )

@@ -5,6 +5,7 @@ from funcy import log_durations
 import numpy as np
 import tensorflow as tf
 from sklearn.cluster import KMeans
+from scipy.spatial import distance
 from tensorflow import keras
 
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader

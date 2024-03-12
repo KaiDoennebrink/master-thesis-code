@@ -13,6 +13,7 @@ from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategy
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
+from deepal_for_ecg.strategies.query.badge import BadgeSamplingStrategy
 from deepal_for_ecg.strategies.query.entropy import EntropySamplingStrategy
 from deepal_for_ecg.strategies.query.plvi_ce import PredictedLabelVectorInconsistencyCrossEntropyStrategy
 from deepal_for_ecg.strategies.query.random import RandomQueryStrategy
@@ -25,6 +26,7 @@ class SelectionStrategy(Enum):
     PLVI_CE_TOPK = "plvi_ce_topk"
     RANDOM = "random"
     ENTROPY = "entropy"
+    BADGE = "badge"
 
 
 @dataclass
@@ -168,6 +170,9 @@ class SelectionStrategyExperiment:
             )
         if self.config.strategy == SelectionStrategy.ENTROPY:
             strategy = EntropySamplingStrategy()
+            return strategy.select_samples(self.config.num_initial_samples, self._data_module, self._best_model)
+        if self.config.strategy == SelectionStrategy.BADGE:
+            strategy = BadgeSamplingStrategy()
             return strategy.select_samples(self.config.num_initial_samples, self._data_module, self._best_model)
 
     def _initial_selection(self) -> Set[int]:

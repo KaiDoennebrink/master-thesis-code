@@ -13,6 +13,7 @@ from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategy
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
+from deepal_for_ecg.strategies.query.entropy import EntropySamplingStrategy
 from deepal_for_ecg.strategies.query.plvi_ce import PredictedLabelVectorInconsistencyCrossEntropyStrategy
 from deepal_for_ecg.strategies.query.random import RandomQueryStrategy
 from deepal_for_ecg.train.test_util import test_step_with_sliding_windows
@@ -23,6 +24,7 @@ class SelectionStrategy(Enum):
     PLVI_CE_KNN = "plvi_ce_knn"
     PLVI_CE_TOPK = "plvi_ce_topk"
     RANDOM = "random"
+    ENTROPY = "entropy"
 
 
 @dataclass
@@ -164,6 +166,9 @@ class SelectionStrategyExperiment:
                 model=self._best_model,
                 top_k_selection=use_top_k
             )
+        if self.config.strategy == SelectionStrategy.ENTROPY:
+            strategy = EntropySamplingStrategy()
+            return strategy.select_samples(self.config.num_initial_samples, self._data_module, self._best_model)
 
     def _initial_selection(self) -> Set[int]:
         """Performs the selection of the first samples."""

@@ -84,6 +84,17 @@ class PTBXLActiveLearningDataModule:
         return np.sum(samples_per_label >= 1) / PTBXLActiveLearningDataModule.NUM_CLASSES
 
     @property
+    def label_cardinality(self) -> int:
+        """
+        Returns the average label cardinality of the currently labeled samples.
+        """
+        current_labels_12_sl = self._train_labels_12sl[list(self._labeled_indices_12sl)]
+        current_labels_ptb_xl = self._train_labels_ptb_xl[list(self._labeled_indices_ptb_xl)]
+        num_of_labels = np.sum(current_labels_12_sl) + np.sum(current_labels_ptb_xl)
+        num_of_samples = len(self._labeled_indices_12sl) + len(self._labeled_indices_ptb_xl)
+        return int(np.ceil(num_of_labels / num_of_samples))
+
+    @property
     def validation_dataset(self) -> tf.data.Dataset:
         if self._validation_dataset is None:
             self._validation_dataset = tf.data.Dataset.from_tensor_slices(

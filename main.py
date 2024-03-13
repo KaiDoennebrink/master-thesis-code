@@ -43,10 +43,11 @@ def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 
 
 
 @app.command()
-def single_selection_experiment(strategy: SelectionStrategy, experiment_name: str):
+def single_selection_experiment(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
     config = SelectionStrategyExperimentConfig(
         name=experiment_name,
-        strategy=strategy
+        strategy=strategy,
+        num_al_iterations=num_al_iterations
     )
     experiment = SelectionStrategyExperiment(config=config)
     experiment.run()

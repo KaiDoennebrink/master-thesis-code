@@ -120,30 +120,48 @@ class SelectionStrategyExperiment:
         self._save_final_results()
 
     def _run_al_iteration(self, name: str, selection: Callable, al_iteration: int):
-        self._print_step("sampling")
-        sample_selection_start = time.time()
-        selected_samples = selection()
-        sampling_time = time.time() - sample_selection_start
-        expected_num_samples = self.config.num_al_samples if al_iteration > 0 else self.config.num_initial_samples
-        assert len(selected_samples) == expected_num_samples, f"{len(selected_samples) = }, {expected_num_samples = }"
-        self._sampling_times.append(sampling_time)
-        self._data_module.update_annotations(buy_idx_ptb_xl=selected_samples, buy_idx_12sl=set())
-        coverage = self._data_module.calculate_label_coverage_ptbxl()
-        self._coverage_results.append(coverage)
-        print(f"{coverage = }")
-        print(f"labeled samples: {len(self._data_module.state_dict()['labeled_indices_ptb_xl'])}")
-        print(f"sampling took {sampling_time:.4f} seconds")
+        if self._is_iteration_complete(al_iteration):
+            result = self._load_previous_result(self._get_result_file(al_iteration))
+            self._load_best_model(name)
+            self._data_module.update_annotations(buy_idx_ptb_xl=result.newly_selected_samples, buy_idx_12sl=set())
+            print(f"Found result: "
+                  f"{result.auc = }, "
+                  f"{result.accuracy = }, "
+                  f"{result.loss = }, "
+                  f"{result.label_coverage = }, "
+                  f"{result.selection_time = }, "
+                  f"{result.training_time = }")
+            self._auc_results.append(result.auc)
+            self._accuracy_results.append(result.accuracy)
+            self._loss_results.append(result.loss)
+            self._coverage_results.append(result.label_coverage)
+            self._training_times.append(result.training_time)
+            self._sampling_times.append(result.selection_time)
+        else:
+            self._print_step("sampling")
+            sample_selection_start = time.time()
+            selected_samples = selection()
+            sampling_time = time.time() - sample_selection_start
+            expected_num_samples = self.config.num_al_samples if al_iteration > 0 else self.config.num_initial_samples
+            assert len(selected_samples) == expected_num_samples, f"{len(selected_samples) = }, {expected_num_samples = }"
+            self._sampling_times.append(sampling_time)
+            self._data_module.update_annotations(buy_idx_ptb_xl=selected_samples, buy_idx_12sl=set())
+            coverage = self._data_module.calculate_label_coverage_ptbxl()
+            self._coverage_results.append(coverage)
+            print(f"{coverage = }")
+            print(f"labeled samples: {len(self._data_module.state_dict()['labeled_indices_ptb_xl'])}")
+            print(f"sampling took {sampling_time:.4f} seconds")
 
-        self._print_step("training")
-        training_start = time.time()
-        self._best_model = self._train(name=name)
-        training_time = time.time() - training_start
-        self._training_times.append(training_time)
-        print(f"training took {training_time:.4f} seconds")
+            self._print_step("training")
+            training_start = time.time()
+            self._best_model = self._train(name=name)
+            training_time = time.time() - training_start
+            self._training_times.append(training_time)
+            print(f"training took {training_time:.4f} seconds")
 
-        self._print_step("testing")
-        self._test()
-        self._save_al_iteration_results(al_iteration, selected_samples)
+            self._print_step("testing")
+            self._test()
+            self._save_al_iteration_results(al_iteration, selected_samples)
         print("")
         print("")
 
@@ -209,14 +227,18 @@ class SelectionStrategyExperiment:
 
         Returns: The model that should be used as a starting model in each active learning iteration.
         """
-        if not self.config.load_model or self.config.start_model_dir is None:
+        if self.config.load_model and not (self.config.start_model_dir is None):
+            return keras.models.load_model(self.config.start_model_dir)
+        elif Path(self._model_dir, "start_model.keras").exists():
+            # load the start model from a previous point
+            return keras.models.load_model(Path(self._model_dir, "start_model.keras"))
+        else:
+            # if no model was loaded, create a new one
             model_config = InceptionNetworkConfig()
             builder = InceptionNetworkBuilder()
             model = builder.build_model(model_config)
             model.save(Path(self._model_dir, "start_model.keras"))
             return model
-        else:
-            keras.models.load_model(self.config.start_model_dir)
 
     def _reset_metrics(self):
         self._test_loss.reset_states()
@@ -257,7 +279,7 @@ class SelectionStrategyExperiment:
             al_iteration=al_iteration
         )
 
-        with open(Path(self._results_dir, f"al_iteration_{al_iteration}.pkl"), "wb") as data_file:
+        with open(self._get_result_file(al_iteration), "wb") as data_file:
             pickle.dump(result, data_file)
 
     def _save_final_results(self):
@@ -288,3 +310,19 @@ class SelectionStrategyExperiment:
         plt.xlabel("AL iteration")
         fig_name = value_name.lower().replace(" ", "_")
         fig.savefig(Path(self._plots_dir, f"{fig_name}_plot.png"))
+
+    def _is_iteration_complete(self, al_iteration: int) -> bool:
+        """Checks whether an iteration was completed earlier."""
+        return self._get_result_file(al_iteration).exists()
+
+    def _get_result_file(self, al_iteration: int) -> Path:
+        """Returns the path to the result file of the given iteration."""
+        return Path(self._results_dir, f"al_iteration_{al_iteration}.pkl")
+
+    def _load_previous_result(self, result_file_path: Path) -> SelectionStrategyExperimentALIterationResult:
+        """Loads the previous run result."""
+        with open(result_file_path, "rb") as pickle_file:
+            return pickle.load(pickle_file)
+
+    def _load_best_model(self, name: str) -> keras.Model:
+        self._best_model = keras.models.load_model(Path(self._model_dir, name, "best_model.keras"))

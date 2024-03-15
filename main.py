@@ -16,6 +16,7 @@ from deepal_for_ecg.experiments.initialization_strategy import (
 )
 from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, SelectionStrategyExperimentConfig, \
     SelectionStrategyExperiment
+from deepal_for_ecg.evaluation import selection
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import (
     InceptionNetworkConfig,
@@ -43,7 +44,8 @@ def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 
 
 
 @app.command()
-def single_selection_experiment(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
+def experiment_selection_strategy(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
+    """Executes a selection strategy experiment."""
     config = SelectionStrategyExperimentConfig(
         name=experiment_name,
         strategy=strategy,
@@ -51,6 +53,15 @@ def single_selection_experiment(strategy: SelectionStrategy, experiment_name: st
     )
     experiment = SelectionStrategyExperiment(config=config)
     experiment.run()
+
+
+@app.command()
+def evaluate_selection_strategy(min_experiment_iterations: int = 21):
+    """Evaluates the selection strategy experiments."""
+    raw_results = selection.collect_data(min_experiment_iterations=min_experiment_iterations)
+    plotting_df = selection.create_dataframe_for_plotting(raw_results)
+    selection.results_over_time_plot(plotting_df)
+    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage.png")
 
 
 @app.command()

@@ -64,11 +64,13 @@ def create_dataframe_for_plotting(data_dict: Dict, num_total_samples: int = 1741
             auc_list = []
             num_samples_list = []
             al_iterations_list = []
+            coverage_list = []
             for result in results:
                 auc_list.append(result.auc)
                 num_samples_list.append(result.num_samples)
                 al_iterations_list.append(result.al_iteration)
-            experiment_data = pd.DataFrame(np.array([auc_list, num_samples_list, al_iterations_list]).T, columns=["Macro AUC", "Number of samples", "AL iteration"])
+                coverage_list.append(result.label_coverage)
+            experiment_data = pd.DataFrame(np.array([auc_list, num_samples_list, al_iterations_list, coverage_list]).T, columns=["Macro AUC", "Number of samples", "AL iteration", "Label coverage"])
             experiment_data["Experiment"] = experiment
             experiment_data["Strategy"] = strategy_name
             experiment_data["Percentage of samples"] = experiment_data["Number of samples"] / num_total_samples * 100
@@ -81,7 +83,7 @@ def create_dataframe_for_plotting(data_dict: Dict, num_total_samples: int = 1741
     return all_data
 
 
-def results_over_time_plot(plotting_df: pd.DataFrame, time_value_to_use: str = "AL iteration", figure_filename: str = "results_over_iteration.png"):
+def results_over_time_plot(plotting_df: pd.DataFrame, time_value_to_use: str = "AL iteration", figure_filename: str = "results_over_iteration.png", result_value_to_use: str = "Macro AUC"):
     """
     Creates a results over time plot from the given data.
 
@@ -90,9 +92,10 @@ def results_over_time_plot(plotting_df: pd.DataFrame, time_value_to_use: str = "
         time_value_to_use (str): The column name that should be used for the time dimension.
         figure_filename (str): The name of the figure file. Is used to store the figure.
     """
+    sns.set(style="whitegrid")
     fig = plt.figure(figsize=(10, 6))
     fig.suptitle("Results of different selection strategies over time")
-    sns.lineplot(plotting_df, y="Macro AUC", x=time_value_to_use, hue="Strategy")
+    sns.lineplot(plotting_df, y=result_value_to_use, x=time_value_to_use, hue="Strategy", errorbar=("ci", 95))
     fig.savefig(figure_filename)
 
 

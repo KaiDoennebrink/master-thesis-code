@@ -16,7 +16,7 @@ from deepal_for_ecg.experiments.initialization_strategy import (
 )
 from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, SelectionStrategyExperimentConfig, \
     SelectionStrategyExperiment
-from deepal_for_ecg.evaluation import selection
+from deepal_for_ecg.evaluation import selection, initialization
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import (
     InceptionNetworkConfig,
@@ -62,6 +62,12 @@ def evaluate_selection_strategy(min_experiment_iterations: int = 21):
     plotting_df = selection.create_dataframe_for_plotting(raw_results)
     selection.results_over_time_plot(plotting_df)
     selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage.png")
+    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration.png")
+
+
+@app.command()
+def evaluate_init_strategy():
+    initialization.plot_init_strategy_results()
 
 
 @app.command()

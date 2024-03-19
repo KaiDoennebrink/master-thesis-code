@@ -102,6 +102,7 @@ class PTBXLDataLoader(BaseDataLoader):
         tmp_ptb_xl_df = pd.read_csv(
             Path(self._raw_ptb_xl_data_dir, "ptbxl_database.csv"), index_col="ecg_id"
         )
+        tmp_ptb_xl_df.sort_index(inplace=True)
         ptb_xl_df = tmp_ptb_xl_df[["strat_fold", "filename_lr"]]
 
         file_location_series = ptb_xl_df["filename_lr"]
@@ -119,8 +120,9 @@ class PTBXLDataLoader(BaseDataLoader):
         # load the PTB-XL SNOMED CT labels
         _ptb_xl_snomed_df = pd.read_csv(
             Path(self._raw_ptb_xl_plus_data_dir, "labels/ptbxl_statements.csv"),
-            index_col="ecg_id",
+            index_col="ecg_id"
         )
+        _ptb_xl_snomed_df.sort_index(inplace=True)
         _ptb_xl_snomed_df["scp_codes_ext_snomed"] = _ptb_xl_snomed_df[
             "scp_codes_ext_snomed"
         ].apply(lambda x: ast.literal_eval(x))
@@ -131,8 +133,10 @@ class PTBXLDataLoader(BaseDataLoader):
 
         # load the 12SL statement SNOMED CT labels
         _12sl_snomed_df = pd.read_csv(
-            Path(self._raw_ptb_xl_plus_data_dir, "labels/12sl_statements.csv")
+            Path(self._raw_ptb_xl_plus_data_dir, "labels/12sl_statements.csv"),
+            index_col="ecg_id"
         )
+        _12sl_snomed_df.sort_index(inplace=True)
         _12sl_snomed_df["statements_ext_snomed"] = _12sl_snomed_df[
             "statements_ext_snomed"
         ].apply(lambda x: ast.literal_eval(x))

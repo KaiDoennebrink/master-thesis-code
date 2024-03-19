@@ -76,11 +76,20 @@ class PTBXLActiveLearningDataModule:
         """Prepares the training data to be used with sliding windows."""
         self._sliding_window_training_samples = generate_sliding_window(self._train_samples, window_size=250, stride=125)
 
-    def calculate_label_coverage_ptbxl(self):
-        """Calculates the label coverage of the currently selected PTB-XL instances."""
-        selected_indices = list(self._labeled_indices_ptb_xl)
-        selected_labels = self._train_labels_ptb_xl[selected_indices]
-        samples_per_label = np.sum(selected_labels, axis=0)
+    def calculate_label_coverage(self):
+        """Calculates the label coverage of the currently selected instances."""
+        # get the samples per label class from the ptb xl dataset
+        selected_indices_pbt_xl = list(self._labeled_indices_ptb_xl)
+        selected_labels_ptb_xl = self._train_labels_ptb_xl[selected_indices_pbt_xl]
+        samples_per_label_ptb_xl = np.sum(selected_labels_ptb_xl, axis=0)
+
+        # get the samples per label class from the 12sl dataset
+        selected_indices_12sl = list(self._labeled_indices_12sl)
+        selected_labels_12sl = self._train_labels_12sl[selected_indices_12sl]
+        samples_per_label_12sl = np.sum(selected_labels_12sl, axis=0)
+
+        # calculate total label coverage
+        samples_per_label = samples_per_label_ptb_xl + samples_per_label_12sl
         return np.sum(samples_per_label >= 1) / PTBXLActiveLearningDataModule.NUM_CLASSES
 
     @property

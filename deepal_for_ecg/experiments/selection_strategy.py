@@ -48,6 +48,7 @@ class SelectionStrategyExperimentConfig:
     start_model_dir: Path | None = None
     # data
     ptbxl_data_base_dir: Path = Path("./data/saved/ptbxl")
+    use_wsa_labels: bool = False
 
 
 @dataclass
@@ -143,7 +144,7 @@ class SelectionStrategyExperiment:
         if self._is_iteration_complete(al_iteration):
             result = self._load_previous_result(self._get_result_file(al_iteration))
             self._load_best_model(name)
-            self._data_module.update_annotations(buy_idx_ptb_xl=result.newly_selected_samples, buy_idx_12sl=set())
+            self._buy_samples(result.newly_selected_samples)
             print(f"Found result: "
                   f"{result.auc = }, "
                   f"{result.accuracy = }, "
@@ -165,11 +166,12 @@ class SelectionStrategyExperiment:
             expected_num_samples = self.config.num_al_samples if al_iteration > 0 else self.config.num_initial_samples
             assert len(selected_samples) == expected_num_samples, f"{len(selected_samples) = }, {expected_num_samples = }"
             self._sampling_times.append(sampling_time)
-            self._data_module.update_annotations(buy_idx_ptb_xl=selected_samples, buy_idx_12sl=set())
-            coverage = self._data_module.calculate_label_coverage_ptbxl()
+            self._buy_samples(selected_samples)
+            coverage = self._data_module.calculate_label_coverage()
             self._coverage_results.append(coverage)
             print(f"{coverage = }")
-            print(f"labeled samples: {len(self._data_module.state_dict()['labeled_indices_ptb_xl'])}")
+            labeled_indices_str = "labeled_indices_ptb_xl" if self.config.use_wsa_labels else "labeled_indices_ptb_xl"
+            print(f"labeled samples: {len(self._data_module.state_dict()[labeled_indices_str])}")
             print(f"sampling took {sampling_time:.4f} seconds")
 
             self._print_step("training")
@@ -184,6 +186,13 @@ class SelectionStrategyExperiment:
             self._save_al_iteration_results(al_iteration, selected_samples)
         print("")
         print("")
+
+    def _buy_samples(self, samples_to_buy: Set[int]):
+        """Buys sample either from the human-annotator (PTB-XL) or from the weak supervision annotator (12 SL)"""
+        if self.config.use_wsa_labels:
+            self._data_module.update_annotations(buy_idx_ptb_xl=set(), buy_idx_12sl=samples_to_buy)
+        else:
+            self._data_module.update_annotations(buy_idx_ptb_xl=samples_to_buy, buy_idx_12sl=set())
 
     def _print_step(self, heading: str):
         """Prints a heading in a unified way to std out."""

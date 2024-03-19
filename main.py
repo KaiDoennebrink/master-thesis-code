@@ -44,12 +44,15 @@ def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 
 
 
 @app.command()
-def experiment_selection_strategy(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
+def experiment_selection_strategy(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20, use_wsa_labels: bool = False):
     """Executes a selection strategy experiment."""
+    base_path = Path("./experiments/wsa") if use_wsa_labels else Path("./experiments/al")
     config = SelectionStrategyExperimentConfig(
         name=experiment_name,
         strategy=strategy,
-        num_al_iterations=num_al_iterations
+        num_al_iterations=num_al_iterations,
+        use_wsa_labels=use_wsa_labels,
+        base_experiment_dir=base_path
     )
     experiment = SelectionStrategyExperiment(config=config)
     experiment.run()

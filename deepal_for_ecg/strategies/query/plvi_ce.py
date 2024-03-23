@@ -223,8 +223,6 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
     @log_durations(print, threshold=0.5)
     def _set_predictions(self, data_module: PTBXLActiveLearningDataModule):
-        _pred_of_unlabeled_samples = []
-
         # TODO: Discuss whether i should use random crop or sliding window aggregation
         self._pred_of_unlabeled_samples = self._get_sliding_window_predictions(
             data_module.unlabeled_sliding_window_sample_dataset

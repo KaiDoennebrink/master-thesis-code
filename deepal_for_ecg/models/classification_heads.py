@@ -61,9 +61,6 @@ def simple_classification_head(config: BasicClassificationHeadConfig):
     x = keras.layers.Dense(128, activation="relu", name=f"Classification_Dense_1")(
         input_layer
     )
-    x = keras.layers.Dense(128, activation="relu", name=f"Classification_Dense_2")(
-        input_layer
-    )
     output_layer = keras.layers.Dense(
         config.num_output_units, name=f"Classification_Output"
     )(x)
@@ -96,3 +93,14 @@ def dropout_head(config: DropoutClassificationHeadConfig):
         outputs=output_layer,
         name="Simple_Multi_Label_Classification_Head",
     )
+
+
+def annotator_model(config: BasicClassificationHeadConfig) -> keras.Model:
+    """Creates the model that is used to decide which annotator to use."""
+    model = keras.models.Sequential([
+        keras.layers.InputLayer((config.num_input_units,), name=f"Input"),
+        keras.layers.Dense(128, activation="relu", name=f"Hidden_1"),
+        keras.layers.Dense(128, activation="relu", name=f"Hidden_2"),
+        keras.layers.Dense(config.num_output_units, activation="sigmoid", name=f"Output")
+    ], name="Annotator_Model")
+    return model

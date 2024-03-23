@@ -1,11 +1,9 @@
 import pickle
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 from typing import Dict
 
 import pandas as pd
-import tensorflow as tf
 from tensorflow import keras
 
 from deepal_for_ecg.data.augmentation import random_crop
@@ -15,10 +13,7 @@ from deepal_for_ecg.models.inception_network import (
     InceptionNetworkConfig,
     InceptionNetworkBuilder,
 )
-from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
-from deepal_for_ecg.strategies.initalize.representation import (
-    RepresentationClusteringInitQueryStrategy,
-)
+from deepal_for_ecg.strategies.initalize import InitializationStrategy, apply_pt4al, apply_representation_clustering
 from deepal_for_ecg.strategies.query.random import RandomQueryStrategy
 from deepal_for_ecg.train.test_util import test_step_with_sliding_windows
 from deepal_for_ecg.train.time_series import MultiLabelTimeSeriesTrainer
@@ -38,16 +33,6 @@ class ExperimentRunResult:
 
     def __str__(self):
         return f"Experiment: {self.experiment_name}, Run: {self.run}, AUC: {self.auc}, Accuracy: {self.accuracy}, Loss: {self.loss}, Epoch: {self.epoch}"
-
-
-class InitializationStrategy(Enum):
-    """Enumeration of initialization strategies."""
-
-    RANDOM = "random"
-    PT4AL_ONE = "pt4al_one"
-    PT4AL_TEN = "pt4al_ten"
-    REPRESENTATION_CLUSTER_PRETEXT = "representation_cluster_pretext"
-    REPRESENTATION_CLUSTER_TL = "representation_cluster_tl"
 
 
 class InitializationStrategyExperiment:
@@ -208,63 +193,36 @@ class InitializationStrategyExperiment:
             selected_samples = RandomQueryStrategy().select_samples(
                 self._initial_samples, unlabeled_indices
             )
-        if strategy == InitializationStrategy.PT4AL_ONE:
-            selected_samples = self._apply_pt4al(run_number, num_of_al_batches=1)
-        if strategy == InitializationStrategy.PT4AL_TEN:
-            selected_samples = self._apply_pt4al(run_number, num_of_al_batches=10)
-        if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT:
-            selected_samples = self._apply_representation_clustering(
-                run_number,
-                self._pretext_model_base_name,
-                lambda x: x,
-                data_module.unlabeled_dataset,
+        if strategy == InitializationStrategy.PT4AL_ONE or strategy == InitializationStrategy.PT4AL_TEN:
+            num_of_al_batches = 1 if strategy == InitializationStrategy.PT4AL_ONE else 10
+            selected_samples = apply_pt4al(
+                self._initial_samples,
+                self._data_loader.X_train,
+                model_dir=self._load_model_dir,
+                pretext_model_base_name=self._pretext_model_base_name,
+                run_number=run_number,
+                num_of_al_batches=num_of_al_batches
             )
-        if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_TL:
-            selected_samples = self._apply_representation_clustering(
-                run_number,
-                self._transfer_learning_model_name,
-                random_crop,
-                data_module.unlabeled_dataset,
+        if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT or strategy == InitializationStrategy.REPRESENTATION_CLUSTER_TL:
+            if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT:
+                model_base_name = self._pretext_model_base_name
+                augmentation_method = lambda x: x
+            else:
+                model_base_name = self._transfer_learning_model_name
+                augmentation_method = random_crop
+            selected_samples = apply_representation_clustering(
+                num_samples=self._initial_samples,
+                unlabeled_dataset=data_module.unlabeled_dataset,
+                model_base_name=model_base_name,
+                augmentation_method=augmentation_method,
+                run_number=run_number,
+                model_dir=self._load_model_dir
             )
 
         data_module.update_annotations(
             buy_idx_ptb_xl=selected_samples, buy_idx_12sl=set()
         )
         return data_module
-
-    def _apply_pt4al(self, run_number: int, num_of_al_batches: int):
-        # load pretext model
-        model_name = f"{self._pretext_model_base_name}{run_number}"
-        model = keras.models.load_model(
-            Path(self._load_model_dir, model_name, "best_model.keras")
-        )
-
-        init_strategy = PreTextLossInitQueryStrategy(model, model_name)
-        init_strategy.prepare(
-            self._data_loader.X_train,
-            num_of_al_batches=num_of_al_batches,
-            load_losses=True,
-        )
-        return init_strategy.select_samples(self._initial_samples, current_batch=0)
-
-    def _apply_representation_clustering(
-        self,
-        run_number: int,
-        model_base_name: str,
-        augmentation_method: callable,
-        unlabeled_dataset: tf.data.Dataset,
-    ):
-        # load pretext model
-        model_name = f"{model_base_name}{run_number}"
-        model = keras.models.load_model(
-            Path(self._load_model_dir, model_name, "best_model.keras")
-        )
-
-        init_strategy = RepresentationClusteringInitQueryStrategy(
-            model, self._initial_samples, augmentation_method
-        )
-        init_strategy.prepare(unlabeled_dataset)
-        return init_strategy.select_samples()
 
     def _is_run_completed(self, result_file: str) -> bool:
         """Checks whether a run was completed earlier."""

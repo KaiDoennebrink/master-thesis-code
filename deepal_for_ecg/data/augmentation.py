@@ -7,6 +7,8 @@ import tensorflow as tf
 
 def random_crop(x: tf.Tensor, timeseries_len: int = 250) -> tf.Tensor:
     """Returns a random crop from the input tensor."""
+    if (x.shape[0] - timeseries_len) == 0:
+        return x
     crop_idx = np.random.randint(0, x.shape[0] - timeseries_len)
     cropped_tensor = x[crop_idx : crop_idx + timeseries_len]
 

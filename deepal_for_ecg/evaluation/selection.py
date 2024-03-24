@@ -7,8 +7,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, \
-    SelectionStrategyExperimentALIterationResult
+from deepal_for_ecg.experiments.base import BaseExperimentALIterationResult
+from deepal_for_ecg.strategies.query import SelectionStrategy
 
 
 def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iterations: int = 21, trim_to_min: bool = True) -> Dict:
@@ -45,7 +45,7 @@ def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iter
     return data_dict
 
 
-def load_result_files(results_dir: Path, num_of_experiment_iterations: int) -> List[SelectionStrategyExperimentALIterationResult]:
+def load_result_files(results_dir: Path, num_of_experiment_iterations: int) -> List[BaseExperimentALIterationResult]:
     """Loads the result files from a given directory and returns them as a list."""
     results = []
     for i in range(num_of_experiment_iterations):

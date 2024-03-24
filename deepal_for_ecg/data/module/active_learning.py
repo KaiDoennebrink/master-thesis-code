@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Set
 
 import numpy as np
 import tensorflow as tf
@@ -159,16 +159,22 @@ class PTBXLActiveLearningDataModule:
     def unlabeled_sliding_window_sample_dataset(self) -> tf.data.Dataset:
         """Constructs and returns the current unlabeled dataset as a sliding window dataset."""
         indices = list(self._unlabeled_indices)
-        return self._get_sliding_window_dataset(indices)
+        return self.get_sliding_window_dataset(indices)
 
     @property
     def labeled_sliding_window_sample_dataset(self) -> tf.data.Dataset:
         """Constructs and returns the current labeled dataset as a sliding window dataset."""
         indices = list(self._labeled_indices_ptb_xl.union(self._labeled_indices_12sl))
-        return self._get_sliding_window_dataset(indices)
+        return self.get_sliding_window_dataset(indices)
 
-    def _get_sliding_window_dataset(self, indices: List[int]) -> tf.data.Dataset:
+    def get_sliding_window_dataset(self, indices: List[int]) -> tf.data.Dataset:
         if self._sliding_window_training_samples is None:
             self.prepare_sliding_windows_data()
         labeled_data = tuple([sample[indices] for sample in self._sliding_window_training_samples])
         return tf.data.Dataset.from_tensor_slices(labeled_data)
+
+    def request_wsa_labels(self, requested_label_indices: Set[int]) -> np.ndarray:
+        return self._train_labels_12sl[list(requested_label_indices)]
+
+    def request_ha_labels(self, requested_label_indices: List[int]) -> np.ndarray:
+        return self._train_labels_ptb_xl[requested_label_indices]

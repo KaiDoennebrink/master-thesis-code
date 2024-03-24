@@ -8,25 +8,19 @@ from deepal_for_ecg.data.loader.icbeb import ICBEBDataLoader
 from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.data.module.icbeb import ICBEBDataModule
-from deepal_for_ecg.data.module.tranformation_recognition import (
-    TransformationRecognitionDataModule,
-)
-from deepal_for_ecg.experiments.initialization_strategy import (
-    InitializationStrategyExperiment,
-)
-from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, SelectionStrategyExperimentConfig, \
-    SelectionStrategyExperiment
+from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
+from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategyExperiment
+from deepal_for_ecg.experiments.base import BaseExperimentConfig, BaseExperiment
+from deepal_for_ecg.experiments.multi_annotator import HybridAnnotatorSelectionExperimentConfig, \
+    HybridAnnotatorSelectionExperiment
+from deepal_for_ecg.experiments.wsa import WSAExperimentConfig, WeakSupervisionAnnotatorExperiment
+from deepal_for_ecg.strategies.query import SelectionStrategy
 from deepal_for_ecg.evaluation import selection, initialization
 from deepal_for_ecg.models.classification_heads import simple_classification_head
-from deepal_for_ecg.models.inception_network import (
-    InceptionNetworkConfig,
-    InceptionNetworkBuilder,
-)
+from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
 from deepal_for_ecg.train.time_series import MultiLabelTimeSeriesTrainer
-from deepal_for_ecg.train.transformation_recognition import (
-    TransformationRecognitionTrainer,
-)
+from deepal_for_ecg.train.transformation_recognition import TransformationRecognitionTrainer
 from deepal_for_ecg.util import improve_gpu_capacity
 
 improve_gpu_capacity()
@@ -44,17 +38,41 @@ def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 
 
 
 @app.command()
-def experiment_selection_strategy(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20, use_wsa_labels: bool = False):
-    """Executes a selection strategy experiment."""
-    base_path = Path("./experiments/wsa") if use_wsa_labels else Path("./experiments/al")
-    config = SelectionStrategyExperimentConfig(
+def experiment_full_human(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
+    """Executes a selection strategy experiment with the full human setting."""
+    # base_path = Path("./experiments/wsa") if use_wsa_labels else Path("./experiments/al")
+    config = BaseExperimentConfig(
         name=experiment_name,
         strategy=strategy,
-        num_al_iterations=num_al_iterations,
-        use_wsa_labels=use_wsa_labels,
-        base_experiment_dir=base_path
+        num_al_iterations=num_al_iterations
     )
-    experiment = SelectionStrategyExperiment(config=config)
+    experiment = BaseExperiment(config=config)
+    experiment.run()
+
+
+@app.command()
+def experiment_full_wsa(experiment_base_name: str, experiment_num: int = 1, num_al_iterations: int = 20):
+    """Executes a selection strategy experiment with the full wsa setting."""
+    experiment_name = f"{experiment_base_name}_{experiment_num}"
+    config = WSAExperimentConfig(
+        name=experiment_name,
+        num_al_iterations=num_al_iterations,
+        init_strategy_pretrained_model_run_number=experiment_num
+    )
+    experiment = WeakSupervisionAnnotatorExperiment(config=config)
+    experiment.run()
+
+
+@app.command()
+def experiment_hybrid(experiment_base_name: str, experiment_num: int = 1, num_al_iterations: int = 20):
+    """Executes a selection strategy experiment with the full wsa setting."""
+    experiment_name = f"{experiment_base_name}_{experiment_num}"
+    config = HybridAnnotatorSelectionExperimentConfig(
+        name=experiment_name,
+        num_al_iterations=num_al_iterations,
+        init_strategy_pretrained_model_run_number=experiment_num
+    )
+    experiment = HybridAnnotatorSelectionExperiment(config=config)
     experiment.run()
 
 

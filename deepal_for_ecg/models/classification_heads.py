@@ -102,5 +102,5 @@ def annotator_model(config: BasicClassificationHeadConfig) -> keras.Model:
         keras.layers.Dense(128, activation="relu", name=f"Hidden_1"),
         keras.layers.Dense(128, activation="relu", name=f"Hidden_2"),
         keras.layers.Dense(config.num_output_units, activation="sigmoid", name=f"Output")
-    ], name="Annotator_Model")
+    ], name="Annotator_Model_Head")
     return model

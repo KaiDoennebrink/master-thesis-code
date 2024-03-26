@@ -178,3 +178,6 @@ class PTBXLActiveLearningDataModule:
 
     def request_ha_labels(self, requested_label_indices: List[int]) -> np.ndarray:
         return self._train_labels_ptb_xl[requested_label_indices]
+
+    def request_raw_signals(self, requested_label_indices: Set[int]) -> np.ndarray:
+        return self._train_samples[list(requested_label_indices)]

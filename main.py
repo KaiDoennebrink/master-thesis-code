@@ -14,6 +14,7 @@ from deepal_for_ecg.experiments.base import BaseExperimentConfig, BaseExperiment
 from deepal_for_ecg.experiments.multi_annotator import HybridAnnotatorSelectionExperimentConfig, \
     HybridAnnotatorSelectionExperiment
 from deepal_for_ecg.experiments.wsa import WSAExperimentConfig, WeakSupervisionAnnotatorExperiment
+from deepal_for_ecg.strategies.annotator import HybridAnnotatorModelSetting
 from deepal_for_ecg.strategies.query import SelectionStrategy
 from deepal_for_ecg.evaluation import selection, initialization
 from deepal_for_ecg.models.classification_heads import simple_classification_head
@@ -64,13 +65,22 @@ def experiment_full_wsa(experiment_base_name: str, experiment_num: int = 1, num_
 
 
 @app.command()
-def experiment_hybrid(experiment_base_name: str, experiment_num: int = 1, num_al_iterations: int = 20):
+def experiment_hybrid(
+        experiment_base_name: str,
+        experiment_num: int = 1,
+        num_al_iterations: int = 20,
+        annotator_model_setting: HybridAnnotatorModelSetting = HybridAnnotatorModelSetting.LABEL_BASED_MODEL
+):
     """Executes a selection strategy experiment with the full wsa setting."""
     experiment_name = f"{experiment_base_name}_{experiment_num}"
+    base_dir = Path(f"./experiments/hybrid_{annotator_model_setting.value}")
     config = HybridAnnotatorSelectionExperimentConfig(
         name=experiment_name,
+        run_number=experiment_num,
+        base_experiment_dir=base_dir,
         num_al_iterations=num_al_iterations,
-        init_strategy_pretrained_model_run_number=experiment_num
+        init_strategy_pretrained_model_run_number=experiment_num,
+        annotator_model_setting=annotator_model_setting
     )
     experiment = HybridAnnotatorSelectionExperiment(config=config)
     experiment.run()

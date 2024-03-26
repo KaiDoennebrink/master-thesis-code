@@ -1,9 +1,9 @@
 from enum import Enum
 
 
-class AnnotatorSetting(Enum):
-    """Enumeration of annotator settings."""
+class HybridAnnotatorModelSetting(Enum):
+    """Enumeration of the hybrid annotator model settings."""
 
-    FULL_HUMAN = "full_human"
-    HYBRID_LABEL = "hybrid_label"
-    FULL_WSA = "full_wsa"
+    LABEL_BASED_MODEL = "label"
+    SIGNAL_BASED_MODEL = "signal"
+

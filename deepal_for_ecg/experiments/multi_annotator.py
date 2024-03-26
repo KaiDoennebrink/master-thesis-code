@@ -13,6 +13,8 @@ from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataMo
 from deepal_for_ecg.data.module.annotator import AnnotatorDataModule
 from deepal_for_ecg.experiments.base import BaseExperimentConfig, BaseExperiment, BaseExperimentALIterationResult
 from deepal_for_ecg.models.classification_heads import annotator_model, BasicClassificationHeadConfig
+from deepal_for_ecg.models.util import get_representation_part_of_model
+from deepal_for_ecg.strategies.annotator import HybridAnnotatorModelSetting
 from deepal_for_ecg.strategies.annotator.selection import AnnotatorSelectionStrategy
 from deepal_for_ecg.strategies.initalize import InitializationStrategy
 from deepal_for_ecg.strategies.query import SelectionStrategy
@@ -21,9 +23,10 @@ from deepal_for_ecg.strategies.annotator.agreement import measure_relative_agree
 
 @dataclass
 class HybridAnnotatorSelectionExperimentConfig(BaseExperimentConfig):
+    run_number: int = 1
     strategy: SelectionStrategy = SelectionStrategy.ENTROPY
     # directories
-    base_experiment_dir: Path = Path("./experiments/hybrid")
+    base_experiment_dir: Path = Path("./experiments/hybrid_label")
     # initialisation
     init_strategy: InitializationStrategy = InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT
     init_strategy_pretrained_model_dir: Path | None = Path("./models")
@@ -33,11 +36,15 @@ class HybridAnnotatorSelectionExperimentConfig(BaseExperimentConfig):
     annotator_agreement_threshold: float = 1
     annotator_test_size: float = 0.1
     # annotator selection
-    annotator_selection_threshold: float = 0.5
+    annotator_selection_threshold: float = 0.65
     start_annotator_model_dir: Path | None = None
     # cost factors
     cost_factor_ha: float = 1
     cost_factor_wsa: float = 0.1
+    # annotator model
+    annotator_model_setting: HybridAnnotatorModelSetting = HybridAnnotatorModelSetting.LABEL_BASED_MODEL
+    annotator_model_pretrained_model_dir: Path | None = Path("./models")
+    annotator_model_pretrained_model_base_name: str | None = "PretextInception"
 
 
 @dataclass(kw_only=True)
@@ -112,10 +119,30 @@ class HybridAnnotatorSelectionExperiment(BaseExperiment):
             return keras.models.load_model(Path(self._model_dir, "start_annotator_model.keras"))
         else:
             # if no model was loaded, create a new one
-            config = BasicClassificationHeadConfig(num_input_units=PTBXLActiveLearningDataModule.NUM_CLASSES, num_output_units=1)
-            model = annotator_model(config)
-            model.save(Path(self._model_dir, "start_annotator_model.keras"))
-            return model
+            if self.config.annotator_model_setting == HybridAnnotatorModelSetting.LABEL_BASED_MODEL:
+                config = BasicClassificationHeadConfig(num_input_units=PTBXLActiveLearningDataModule.NUM_CLASSES, num_output_units=1)
+                model = annotator_model(config)
+                model.save(Path(self._model_dir, "start_annotator_model.keras"))
+                return model
+            else:
+                input_layer = keras.layers.Input((1000, 12), name=f"Input")
+                pretrained_model = keras.models.load_model(
+                    Path(
+                        self.config.annotator_model_pretrained_model_dir,
+                        f"{self.config.annotator_model_pretrained_model_base_name}{self.config.run_number}",
+                        "best_model.keras"
+                    )
+                )
+                pretrained_representation_model = get_representation_part_of_model(pretrained_model)
+                pretrained_representation_model.trainable = False
+                representation_out = pretrained_representation_model(input_layer)
+                config = BasicClassificationHeadConfig(num_input_units=representation_out.shape[1],
+                                                       num_output_units=1)
+                annotator_model_head = annotator_model(config)
+                output_layer = annotator_model_head(representation_out)
+                model = keras.Model(inputs=input_layer, outputs=output_layer, name="Annotator_Model_Signal_Based")
+                model.save(Path(self._model_dir, "start_annotator_model.keras"))
+                return model
 
     def _load_best_model(self, name: str) -> keras.Model:
         super()._load_best_model(name)
@@ -140,10 +167,11 @@ class HybridAnnotatorSelectionExperiment(BaseExperiment):
             self._is_initialized = True
             wsa_labels = self._data_module.request_wsa_labels(selected_indices)
             ha_labels = self._data_module.request_ha_labels(list(selected_indices))
-            self._annotator_data_module.update_data(ha_labels, wsa_labels)
+            input_data = self._get_input_data_for_data_module(selected_indices)
+            self._annotator_data_module.update_data(ha_labels, wsa_labels, input_data)
         else:
-            all_wsa_labels = self._data_module.request_wsa_labels(selected_indices)
-            ds = tf.data.Dataset.from_tensor_slices(all_wsa_labels)
+            input_data = self._get_input_data_for_data_module(selected_indices)
+            ds = tf.data.Dataset.from_tensor_slices(input_data)
             selected_annotators = self._annotator_selector.select_annotator(self._best_annotator_model, ds)
             # update counts
             num_of_wsa_samples = np.sum(selected_annotators)
@@ -152,6 +180,7 @@ class HybridAnnotatorSelectionExperiment(BaseExperiment):
             self._samples_from_wsa.append(num_of_wsa_samples)
             print(f"Selected {num_of_wsa_samples} samples from WSA and {num_of_ha_samples} samples from HA.")
             # update the active learning data module
+            all_wsa_labels = self._data_module.request_wsa_labels(selected_indices)
             wsa_indices = list(np.array(list(selected_indices))[selected_annotators])
             ha_indices = list(np.array(list(selected_indices))[~selected_annotators])
             self._data_module.update_annotations(buy_idx_ptb_xl=set(ha_indices), buy_idx_12sl=set(wsa_indices))
@@ -159,18 +188,36 @@ class HybridAnnotatorSelectionExperiment(BaseExperiment):
             wsa_labels = all_wsa_labels[~selected_annotators]
             ha_labels = self._data_module.request_ha_labels(ha_indices)
             # TODO: If the experiment is killed and it is rerun there will be different samples in the train and val data
-            self._annotator_data_module.update_data(ha_labels, wsa_labels)
+            input_data = self._get_input_data_for_data_module(ha_indices)
+            self._annotator_data_module.update_data(ha_labels, wsa_labels, input_data)
             # update instance fields so that the result will be correct
             self._selected_samples = set(ha_indices)
             self._selected_samples_from_wsa = set(wsa_indices)
 
+    def _get_input_data_for_data_module(self, selected_indices):
+        if self.config.annotator_model_setting == HybridAnnotatorModelSetting.LABEL_BASED_MODEL:
+            return self._data_module.request_wsa_labels(selected_indices)
+        elif self.config.annotator_model_setting == HybridAnnotatorModelSetting.SIGNAL_BASED_MODEL:
+            return self._data_module.request_raw_signals(selected_indices)
+        else:
+            raise NotImplementedError(f"Not implemented for {self.config.annotator_model_setting = }")
+
     def _train(self, name: str):
         super()._train(name)
+
         model = keras.models.clone_model(self._start_annotator_model)
         loss_fn = keras.losses.BinaryCrossentropy()
-        model.compile(optimizer='adam', loss=loss_fn, metrics=['accuracy'])
-        callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=25, restore_best_weights=True)]
-        model.fit(self._annotator_data_module.train_dataset, epochs=100, validation_data=self._annotator_data_module.validation_dataset, callbacks=callbacks)
+        auc = keras.metrics.AUC(name="auc")
+        model.compile(optimizer=keras.optimizers.AdamW(), loss=loss_fn, metrics=['accuracy', auc])
+        callbacks = []  # [tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=25, restore_best_weights=True)]
+        model.fit(
+            self._annotator_data_module.train_dataset,
+            epochs=100,
+            validation_data=self._annotator_data_module.validation_dataset,
+            callbacks=callbacks,
+            class_weight=self._annotator_data_module.get_class_weights(),
+            verbose=True
+        )
         self._best_annotator_model = model
         self._best_annotator_model.save(Path(self._model_dir, name, "best_annotator_model.keras"))
 

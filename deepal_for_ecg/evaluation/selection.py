@@ -1,13 +1,12 @@
-import pickle
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from deepal_for_ecg.experiments.base import BaseExperimentALIterationResult
+from deepal_for_ecg.evaluation.util import collect_experiment_runs_data
 from deepal_for_ecg.strategies.query import SelectionStrategy
 
 
@@ -26,47 +25,22 @@ def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iter
     """
     data_dict = dict()
     for strategy in SelectionStrategy:
-        experiments_dir = dict()
         strategy_base_path = Path(base_path, strategy.value)
-
         if not strategy_base_path.exists():
             continue
 
-        for experiment_dir in strategy_base_path.iterdir():
-            experiment_results_dir = Path(experiment_dir, "results")
-            al_iteration_result_paths = []
-            for p in experiment_results_dir.iterdir():
-                if p.match("al_iteration_[0-9]*.pkl"):
-                    al_iteration_result_paths.append(p)
-
-            # check whether the experiment has enough iterations
-            num_of_experiment_iterations = len(al_iteration_result_paths)
-            if num_of_experiment_iterations >= min_experiment_iterations:
-                iterations_to_consider = min_experiment_iterations if trim_to_min else num_of_experiment_iterations
-                experiments_dir[experiment_dir.name] = load_result_files(experiment_results_dir, iterations_to_consider)
-
-        data_dict[strategy.value] = experiments_dir
+        data_dict[strategy.value] = collect_experiment_runs_data(strategy_base_path, min_experiment_iterations, trim_to_min)
     return data_dict
-
-
-def load_result_files(results_dir: Path, num_of_experiment_iterations: int) -> List[BaseExperimentALIterationResult]:
-    """Loads the result files from a given directory and returns them as a list."""
-    results = []
-    for i in range(num_of_experiment_iterations):
-        p = Path(results_dir, f"al_iteration_{i}.pkl")
-        with open(p, "rb") as pickle_file:
-            results.append(pickle.load(pickle_file))
-    return results
 
 
 def create_dataframe_for_plotting(data_dict: Dict, num_total_samples: int = 17418) -> pd.DataFrame:
     """Creates a dataframe that can be used for plotting."""
     all_data = None
     for strategy in SelectionStrategy:
-        strategy_name = get_plotting_name(strategy)
-
         if strategy.value not in data_dict:
             continue
+
+        strategy_name = get_plotting_name(strategy)
 
         for experiment, results in data_dict[strategy.value].items():
             auc_list = []

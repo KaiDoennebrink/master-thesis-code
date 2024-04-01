@@ -18,7 +18,7 @@ from deepal_for_ecg.experiments.wsa import WSAExperimentConfig, WeakSupervisionA
 from deepal_for_ecg.strategies.annotator import HybridAnnotatorModelSetting
 from deepal_for_ecg.strategies.initalize import InitializationStrategy
 from deepal_for_ecg.strategies.query import SelectionStrategy
-from deepal_for_ecg.evaluation import selection, initialization
+from deepal_for_ecg.evaluation import selection, initialization, hybrid
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
@@ -123,6 +123,16 @@ def evaluate_hybrid(min_experiment_iterations: int = 21):
     selection.results_over_time_plot(plotting_df, figure_filename="results_over_iteration_hybrid.png")
     selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage_hybrid.png")
     selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration_hybrid.png")
+
+
+@app.command()
+def evaluate_hybrid_annotator(min_experiment_iterations: int = 21, with_title: bool = False):
+    """Evaluates the selection strategy experiments."""
+    raw_results = hybrid.collect_data(min_iterations=min_experiment_iterations)
+    plotting_df = hybrid.create_dataframe(raw_results)
+    hybrid.cost_plot(plotting_df, with_title=with_title)
+    hybrid.auc_plot(plotting_df, with_title=with_title)
+    hybrid.samples_plot(plotting_df, with_title=with_title)
 
 
 @app.command()

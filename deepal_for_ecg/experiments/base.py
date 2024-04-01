@@ -324,6 +324,7 @@ class BaseExperiment:
         Returns: The model that should be used as a starting model in each active learning iteration.
         """
         if not (self.config.start_model_dir is None) and self.config.start_model_dir.exists():
+            print(f"Load start model from path {self.config.start_model_dir}")
             return keras.models.load_model(self.config.start_model_dir)
         elif Path(self._model_dir, "start_model.keras").exists():
             # load the start model from a previous point

@@ -5,7 +5,7 @@ import pandas as pd
 import seaborn as sns
 
 
-def plot_init_strategy_results(path_to_result_file: Path = Path("./experiments/init_strategy/results.csv")):
+def plot_init_strategy_results(path_to_result_file: Path = Path("./experiments/init_strategy/results/results.csv")):
     # prepare the data
     df = pd.read_csv(path_to_result_file)
     plotting_df = df[["auc", "experiment_name"]].copy()

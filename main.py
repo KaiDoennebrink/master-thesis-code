@@ -9,12 +9,14 @@ from deepal_for_ecg.data.loader.ptbxl import PTBXLDataLoader
 from deepal_for_ecg.data.module.active_learning import PTBXLActiveLearningDataModule
 from deepal_for_ecg.data.module.icbeb import ICBEBDataModule
 from deepal_for_ecg.data.module.tranformation_recognition import TransformationRecognitionDataModule
-from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategyExperiment
+from deepal_for_ecg.experiments.initialization_strategy import InitializationStrategyExperiment, \
+    InitializationExperimentConfig
 from deepal_for_ecg.experiments.base import BaseExperimentConfig, BaseExperiment
 from deepal_for_ecg.experiments.multi_annotator import HybridAnnotatorSelectionExperimentConfig, \
     HybridAnnotatorSelectionExperiment
 from deepal_for_ecg.experiments.wsa import WSAExperimentConfig, WeakSupervisionAnnotatorExperiment
 from deepal_for_ecg.strategies.annotator import HybridAnnotatorModelSetting
+from deepal_for_ecg.strategies.initalize import InitializationStrategy
 from deepal_for_ecg.strategies.query import SelectionStrategy
 from deepal_for_ecg.evaluation import selection, initialization
 from deepal_for_ecg.models.classification_heads import simple_classification_head
@@ -30,22 +32,39 @@ app = typer.Typer()
 
 
 @app.command()
-def experiment_init_strategy(runs_per_strategy: int = 5, initial_samples: int = 300):
+def experiment_init_strategy(runs_per_strategy: int = 10, initial_samples: int = 300):
     """Executes the initialization strategy experiment. The results are saved in a csv-file."""
-    experiment = InitializationStrategyExperiment(
-        runs_per_strategy=runs_per_strategy, initial_samples=initial_samples
-    )
+    config = InitializationExperimentConfig(runs_per_strategy=runs_per_strategy, initial_samples=initial_samples)
+    experiment = InitializationStrategyExperiment(config)
     experiment.run()
 
 
 @app.command()
-def experiment_full_human(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
+def experiment_selection_strategy(strategy: SelectionStrategy, experiment_name: str, num_al_iterations: int = 20):
     """Executes a selection strategy experiment with the full human setting."""
-    # base_path = Path("./experiments/wsa") if use_wsa_labels else Path("./experiments/al")
     config = BaseExperimentConfig(
         name=experiment_name,
         strategy=strategy,
         num_al_iterations=num_al_iterations
+    )
+    experiment = BaseExperiment(config=config)
+    experiment.run()
+
+
+@app.command()
+def experiment_full_human(experiment_base_name: str, experiment_num: int = 1, num_al_iterations: int = 20):
+    """Executes a selection strategy experiment with the full human setting."""
+    experiment_name = f"{experiment_base_name}_{experiment_num}"
+    config = BaseExperimentConfig(
+        base_experiment_dir=Path("./experiments/full_human"),
+        strategy=SelectionStrategy.ENTROPY,
+        name=experiment_name,
+        num_al_iterations=num_al_iterations,
+        start_model_dir=Path(f"./experiments/hybrid_label/entropy/run_{experiment_num}/models/start_model.keras"),
+        init_strategy=InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT,
+        init_strategy_pretrained_model_run_number=experiment_num,
+        init_strategy_pretrained_model_dir=Path("./models"),
+        init_strategy_pretrained_model_base_name="PretextInception"
     )
     experiment = BaseExperiment(config=config)
     experiment.run()
@@ -58,7 +77,8 @@ def experiment_full_wsa(experiment_base_name: str, experiment_num: int = 1, num_
     config = WSAExperimentConfig(
         name=experiment_name,
         num_al_iterations=num_al_iterations,
-        init_strategy_pretrained_model_run_number=experiment_num
+        init_strategy_pretrained_model_run_number=experiment_num,
+        start_model_dir=Path(f"./experiments/hybrid_label/entropy/run_{experiment_num}/models/start_model.keras")
     )
     experiment = WeakSupervisionAnnotatorExperiment(config=config)
     experiment.run()
@@ -94,6 +114,15 @@ def evaluate_selection_strategy(min_experiment_iterations: int = 21):
     selection.results_over_time_plot(plotting_df)
     selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage.png")
     selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration.png")
+
+@app.command()
+def evaluate_hybrid(min_experiment_iterations: int = 21):
+    """Evaluates the selection strategy experiments."""
+    raw_results = selection.collect_data(base_path=Path("./experiments/hybrid_Label"), min_experiment_iterations=min_experiment_iterations)
+    plotting_df = selection.create_dataframe_for_plotting(raw_results)
+    selection.results_over_time_plot(plotting_df, figure_filename="results_over_iteration_hybrid.png")
+    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage_hybrid.png")
+    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration_hybrid.png")
 
 
 @app.command()

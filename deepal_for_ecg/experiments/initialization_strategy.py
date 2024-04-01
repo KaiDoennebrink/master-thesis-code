@@ -20,6 +20,23 @@ from deepal_for_ecg.train.time_series import MultiLabelTimeSeriesTrainer
 
 
 @dataclass
+class InitializationExperimentConfig:
+    # general experiment setup
+    base_experiment_dir: Path = Path("./experiments/init_strategy")
+    model_dir_name: str = "models"
+    log_dir_name: str = "logs"
+    results_dir_name: str = "results"
+    runs_per_strategy: int = 10
+    # setup for the initialization strategies
+    pretrained_model_dir: Path = Path("./models")
+    initial_samples: int = 300
+    pretext_model_base_name: str = "PretextInception"
+    transfer_learning_model_name: str = "ICBEBInception"
+    # data
+    saved_data_base_dir: str | Path = Path("./data/saved/ptbxl")
+
+
+@dataclass
 class ExperimentRunResult:
     """The result of an experiment run."""
 
@@ -47,31 +64,17 @@ class InitializationStrategyExperiment:
     - Representation clustering selection with representations from a model trained on another dataset
     """
 
-    def __init__(
-        self,
-        model_dir: Path = Path("./models"),
-        log_dir: Path = Path("./logs/experiments/init_strategy"),
-        pretext_model_base_name: str = "PretextInception",
-        transfer_learning_model_name: str = "ICBEBInception",
-        initial_samples: int = 300,
-        saved_data_base_dir: str | Path = Path("./data/saved/ptbxl"),
-        runs_per_strategy: int = 5,
-        experiment_result_dir: Path = Path("./experiments/init_strategy"),
-    ):
-        self._data_loader = PTBXLDataLoader(
-            load_saved_data=True, saved_data_base_dir=saved_data_base_dir
-        )
+    def __init__(self, config: InitializationExperimentConfig):
+        self.config = config
+        self._data_loader = PTBXLDataLoader(load_saved_data=True, saved_data_base_dir=config.saved_data_base_dir)
         self._data_loader.load_data()
-        self._initial_samples = initial_samples
-        self._load_model_dir = model_dir
-        self._experiment_model_dir = Path(model_dir, "init_experiment")
+        self._experiment_model_dir = Path(config.base_experiment_dir, config.model_dir_name)
         self._experiment_model_dir.mkdir(parents=True, exist_ok=True)
-        self._pretext_model_base_name = pretext_model_base_name
-        self._transfer_learning_model_name = transfer_learning_model_name
-        self._log_dir = log_dir
+        self._init_model_dir = Path(self._experiment_model_dir, "initial")
+        self._init_model_dir.mkdir(parents=True, exist_ok=True)
+        self._log_dir = Path(config.base_experiment_dir, config.log_dir_name)
         self._log_dir.mkdir(parents=True, exist_ok=True)
-        self._runs_per_strategy = runs_per_strategy
-        self._experiment_result_dir = experiment_result_dir
+        self._experiment_result_dir = Path(config.base_experiment_dir, config.results_dir_name)
         self._experiment_result_dir.mkdir(parents=True, exist_ok=True)
 
         # for model evaluation
@@ -84,10 +87,13 @@ class InitializationStrategyExperiment:
             num_labels=PTBXLActiveLearningDataModule.NUM_CLASSES,
         )
 
+        with open(Path(config.base_experiment_dir, "config.pkl"), "wb") as data_file:
+            pickle.dump(config, data_file)
+
     def run(self):
         all_run_results = []
         for strategy in InitializationStrategy:
-            for run_number in range(1, self._runs_per_strategy + 1):
+            for run_number in range(1, self.config.runs_per_strategy + 1):
                 print("-------------------------------------------------------")
                 print(f"Running strategy {strategy} - run number {run_number}")
                 result_file_name = f"{strategy.value}_{run_number}.pkl"
@@ -125,9 +131,7 @@ class InitializationStrategyExperiment:
         )
 
         # prepare the model
-        model_config = InceptionNetworkConfig()
-        builder = InceptionNetworkBuilder()
-        model = builder.build_model(model_config)
+        model = self._get_model(run_number)
 
         # train the classifier
         trainer = MultiLabelTimeSeriesTrainer(
@@ -139,7 +143,7 @@ class InitializationStrategyExperiment:
             epochs=100,
         )
         trainer.experiment_name = f"{strategy.value}_{run_number}"
-        trainer.fit(data_module.train_dataset, data_module.validation_dataset)
+        trainer.fit(data_module.train_dataset, data_module.validation_dataset, verbose=True)
         best_model = trainer.get_model(best=True)
 
         # evaluate the performance
@@ -148,7 +152,7 @@ class InitializationStrategyExperiment:
             test_step_with_sliding_windows(
                 sliding_window_batch=samples,
                 label_batch=labels,
-                model=model,
+                model=best_model,
                 loss_object=self._loss_object,
                 loss_based_metrics=[self._test_loss],
                 prediction_based_metrics=[self._test_accuracy, self._test_auc],
@@ -190,33 +194,31 @@ class InitializationStrategyExperiment:
 
         if strategy == InitializationStrategy.RANDOM:
             unlabeled_indices = data_module.state_dict()["unlabeled_indices"]
-            selected_samples = RandomQueryStrategy().select_samples(
-                self._initial_samples, unlabeled_indices
-            )
+            selected_samples = RandomQueryStrategy().select_samples(self.config.initial_samples, unlabeled_indices)
         if strategy == InitializationStrategy.PT4AL_ONE or strategy == InitializationStrategy.PT4AL_TEN:
             num_of_al_batches = 1 if strategy == InitializationStrategy.PT4AL_ONE else 10
             selected_samples = apply_pt4al(
-                self._initial_samples,
+                self.config.initial_samples,
                 self._data_loader.X_train,
-                model_dir=self._load_model_dir,
-                pretext_model_base_name=self._pretext_model_base_name,
+                model_dir=self.config.pretrained_model_dir,
+                pretext_model_base_name=self.config.pretext_model_base_name,
                 run_number=run_number,
                 num_of_al_batches=num_of_al_batches
             )
         if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT or strategy == InitializationStrategy.REPRESENTATION_CLUSTER_TL:
             if strategy == InitializationStrategy.REPRESENTATION_CLUSTER_PRETEXT:
-                model_base_name = self._pretext_model_base_name
+                model_base_name = self.config.pretext_model_base_name
                 augmentation_method = lambda x: x
             else:
-                model_base_name = self._transfer_learning_model_name
+                model_base_name = self.config.transfer_learning_model_name
                 augmentation_method = random_crop
             selected_samples = apply_representation_clustering(
-                num_samples=self._initial_samples,
+                num_samples=self.config.initial_samples,
                 unlabeled_dataset=data_module.unlabeled_dataset,
                 model_base_name=model_base_name,
                 augmentation_method=augmentation_method,
                 run_number=run_number,
-                model_dir=self._load_model_dir
+                model_dir=self.config.pretrained_model_dir
             )
 
         data_module.update_annotations(
@@ -243,3 +245,19 @@ class InitializationStrategyExperiment:
         """Loads the previous run result."""
         with open(Path(self._experiment_result_dir, result_file), "rb") as pickle_file:
             return pickle.load(pickle_file)
+
+    def _get_model(self, run_number) -> keras.Model:
+        """
+        Returns the initial model for the given run number so that for each run with the different strategies the same
+        initial model is used.
+        """
+        initial_model_path = Path(self._init_model_dir, f"initial_model_{run_number}.keras")
+        if initial_model_path.exists():
+            # load the existing initial model
+            return keras.models.load_model(initial_model_path)
+
+        model_config = InceptionNetworkConfig()
+        builder = InceptionNetworkBuilder()
+        model = builder.build_model(model_config)
+        model.save(initial_model_path)
+        return model

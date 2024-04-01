@@ -7,8 +7,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from deepal_for_ecg.experiments.selection_strategy import SelectionStrategy, \
-    SelectionStrategyExperimentALIterationResult
+from deepal_for_ecg.experiments.base import BaseExperimentALIterationResult
+from deepal_for_ecg.strategies.query import SelectionStrategy
 
 
 def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iterations: int = 21, trim_to_min: bool = True) -> Dict:
@@ -28,6 +28,10 @@ def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iter
     for strategy in SelectionStrategy:
         experiments_dir = dict()
         strategy_base_path = Path(base_path, strategy.value)
+
+        if not strategy_base_path.exists():
+            continue
+
         for experiment_dir in strategy_base_path.iterdir():
             experiment_results_dir = Path(experiment_dir, "results")
             al_iteration_result_paths = []
@@ -45,7 +49,7 @@ def collect_data(base_path: Path = Path("./experiments/al"), min_experiment_iter
     return data_dict
 
 
-def load_result_files(results_dir: Path, num_of_experiment_iterations: int) -> List[SelectionStrategyExperimentALIterationResult]:
+def load_result_files(results_dir: Path, num_of_experiment_iterations: int) -> List[BaseExperimentALIterationResult]:
     """Loads the result files from a given directory and returns them as a list."""
     results = []
     for i in range(num_of_experiment_iterations):
@@ -60,6 +64,10 @@ def create_dataframe_for_plotting(data_dict: Dict, num_total_samples: int = 1741
     all_data = None
     for strategy in SelectionStrategy:
         strategy_name = get_plotting_name(strategy)
+
+        if strategy.value not in data_dict:
+            continue
+
         for experiment, results in data_dict[strategy.value].items():
             auc_list = []
             num_samples_list = []

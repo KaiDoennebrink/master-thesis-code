@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import MaxNLocator
 
 from deepal_for_ecg.evaluation.util import collect_experiment_runs_data
 from deepal_for_ecg.strategies.query import SelectionStrategy
@@ -65,7 +66,43 @@ def create_dataframe_for_plotting(data_dict: Dict, num_total_samples: int = 1741
     return all_data
 
 
-def results_over_time_plot(plotting_df: pd.DataFrame, time_value_to_use: str = "AL iteration", figure_filename: str = "results_over_iteration.png", result_value_to_use: str = "Macro AUC"):
+def auc_coverage_plot(
+        plotting_df: pd.DataFrame,
+        time_value_to_use: str = "AL iteration",
+        figure_filename: str = "plots/auc_coverage_plot.png",
+        auc_value_to_use: str = "Macro AUC",
+        coverage_value_to_use: str = "Label coverage",
+        x_max: int = 20,
+        auc_supervised_result: float = 0.8955587148666382
+):
+    sns.set(style="whitegrid")
+    fig, axes = plt.subplots(ncols=2, figsize=(9, 4))
+    # auc part
+    g = sns.lineplot(plotting_df, y=auc_value_to_use, x=time_value_to_use, hue="Strategy", errorbar=("ci", 95),
+                 ax=axes[0])
+    g.axhline(auc_supervised_result, color="grey", linestyle="--")
+    axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+    axes[0].set_xlim([0, x_max])
+
+    # coverage part
+    sns.lineplot(data=plotting_df, y=coverage_value_to_use, x=time_value_to_use, hue="Strategy",
+                 errorbar=("ci", 95), ax=axes[1])
+    axes[1].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+    axes[1].set_xlim([0, x_max])
+
+    fig.tight_layout()
+    fig.savefig(figure_filename, dpi=600)
+
+
+def results_over_time_plot(
+        plotting_df: pd.DataFrame,
+        time_value_to_use: str = "AL iteration",
+        figure_filename: str = "results_over_iteration.png",
+        result_value_to_use: str = "Macro AUC",
+        with_title: bool = True,
+        x_max: int = 20,
+        auc_supervised_result: float = 0.8955587148666382
+):
     """
     Creates a results over time plot from the given data.
 
@@ -73,12 +110,27 @@ def results_over_time_plot(plotting_df: pd.DataFrame, time_value_to_use: str = "
         plotting_df (pd.DataFrame): The data that should be plotted.
         time_value_to_use (str): The column name that should be used for the time dimension.
         figure_filename (str): The name of the figure file. Is used to store the figure.
+        result_value_to_use (str): The colum name of the result that should be used for the y dimension.
+        with_title (bool): Whether to add a title or not.
+        x_max (int): The maximum value for the x axis. Defaults to 20
+        auc_supervised_result (float): The average result of fully supervised training on all data
     """
     sns.set(style="whitegrid")
-    fig = plt.figure(figsize=(10, 6))
-    fig.suptitle("Results of different selection strategies over time")
-    sns.lineplot(plotting_df, y=result_value_to_use, x=time_value_to_use, hue="Strategy", errorbar=("ci", 95))
-    fig.savefig(figure_filename)
+    fig = plt.figure(figsize=(7, 4))
+    if with_title:
+        fig.suptitle("Results of different selection strategies over time")
+    g = sns.lineplot(plotting_df, y=result_value_to_use, x=time_value_to_use, hue="Strategy", errorbar=("ci", 95))
+
+    if result_value_to_use == "Macro AUC":
+        g.axhline(auc_supervised_result, color="grey", linestyle="--")
+
+    if time_value_to_use == "AL iteration":
+        fig.axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+        fig.axes[0].set_xlim(0, x_max)
+    else:
+        fig.axes[0].set_xlim(0, 100)
+    fig.tight_layout()
+    fig.savefig(figure_filename, dpi=600)
 
 
 def get_plotting_name(strategy: SelectionStrategy) -> str:
@@ -90,6 +142,6 @@ def get_plotting_name(strategy: SelectionStrategy) -> str:
     if strategy == SelectionStrategy.ENTROPY:
         return "Entropy"
     if strategy == SelectionStrategy.PLVI_CE_TOPK:
-        return "PLVI-CE with top-k"
+        return "PLVI-CE (top-k)"
     if strategy == SelectionStrategy.PLVI_CE_KNN:
-        return "PLVI-CE with clustering"
+        return "PLVI-CE (clust)"

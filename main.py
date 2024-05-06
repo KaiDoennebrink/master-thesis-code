@@ -18,7 +18,7 @@ from deepal_for_ecg.experiments.wsa import WSAExperimentConfig, WeakSupervisionA
 from deepal_for_ecg.strategies.annotator import HybridAnnotatorModelSetting
 from deepal_for_ecg.strategies.initalize import InitializationStrategy
 from deepal_for_ecg.strategies.query import SelectionStrategy
-from deepal_for_ecg.evaluation import selection, initialization, hybrid
+from deepal_for_ecg.evaluation import selection, initialization, hybrid, supervised
 from deepal_for_ecg.models.classification_heads import simple_classification_head
 from deepal_for_ecg.models.inception_network import InceptionNetworkConfig, InceptionNetworkBuilder
 from deepal_for_ecg.strategies.initalize.pt4al import PreTextLossInitQueryStrategy
@@ -107,22 +107,23 @@ def experiment_hybrid(
 
 
 @app.command()
-def evaluate_selection_strategy(min_experiment_iterations: int = 21):
+def evaluate_selection_strategy(min_experiment_iterations: int = 21, with_title: bool = False):
     """Evaluates the selection strategy experiments."""
     raw_results = selection.collect_data(min_experiment_iterations=min_experiment_iterations)
     plotting_df = selection.create_dataframe_for_plotting(raw_results)
-    selection.results_over_time_plot(plotting_df)
-    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage.png")
-    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration.png")
+    selection.auc_coverage_plot(plotting_df)
+    selection.results_over_time_plot(plotting_df, with_title=with_title, figure_filename="plots/results_over_iteration.png", x_max=min_experiment_iterations-1)
+    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="plots/results_over_percentage.png", with_title=with_title)
+    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="plots/coverage_over_iteration.png", with_title=with_title, x_max=min_experiment_iterations-1)
 
 @app.command()
 def evaluate_hybrid(min_experiment_iterations: int = 21):
     """Evaluates the selection strategy experiments."""
     raw_results = selection.collect_data(base_path=Path("./experiments/hybrid_Label"), min_experiment_iterations=min_experiment_iterations)
     plotting_df = selection.create_dataframe_for_plotting(raw_results)
-    selection.results_over_time_plot(plotting_df, figure_filename="results_over_iteration_hybrid.png")
-    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="results_over_percentage_hybrid.png")
-    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="coverage_over_iteration_hybrid.png")
+    selection.results_over_time_plot(plotting_df, figure_filename="plots/results_over_iteration_hybrid.png")
+    selection.results_over_time_plot(plotting_df, time_value_to_use="Percentage of samples", figure_filename="plots/results_over_percentage_hybrid.png")
+    selection.results_over_time_plot(plotting_df, result_value_to_use="Label coverage", figure_filename="plots/coverage_over_iteration_hybrid.png")
 
 
 @app.command()
@@ -133,6 +134,7 @@ def evaluate_hybrid_annotator(min_experiment_iterations: int = 21, with_title: b
     hybrid.cost_plot(plotting_df, with_title=with_title)
     hybrid.auc_plot(plotting_df, with_title=with_title)
     hybrid.samples_plot(plotting_df, with_title=with_title)
+    hybrid.auc_cost_plot(plotting_df)
 
 
 @app.command()
@@ -239,6 +241,7 @@ def train_ptbxl_model_fully_supervised(
             model=model,
             model_name=f"{base_name}{i+1}",
             num_labels=data_module.NUM_CLASSES,
+            epochs=100
         )
         trainer.fit(data_module.train_dataset, data_module.validation_dataset)
 
@@ -301,6 +304,11 @@ def prepare_loss_for_pt4al(model_name: str):
     # prepare the losses
     init_strategy = PreTextLossInitQueryStrategy(b_model, model_name)
     init_strategy.prepare(signal_data)
+
+
+@app.command()
+def get_supervised_results():
+    supervised.test_all_supervised_models()
 
 
 if __name__ == "__main__":

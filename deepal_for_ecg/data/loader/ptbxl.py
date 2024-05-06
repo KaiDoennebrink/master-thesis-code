@@ -145,13 +145,6 @@ class PTBXLDataLoader(BaseDataLoader):
         ].apply(self._filter_snomed_codes)
         self._12sl_snomed_labels = _12sl_snomed_df["relevant_snomed"]
 
-    def _split_data(self):
-        """
-        Splits the data into training, validation and test data using the folds from the PTB-XL dataset.
-        For the validation and test data, the PTB-XL SNOMED labels are just provided as labels.
-        For the training data, the PTB-XL SNOMED labels and the 12SL SNOMED labels are provided.
-        During the process the SNOMED labels will be encoded with a multi label binarizer.
-        """
         # initialize multi label binarizer
         self._mlb = MultiLabelBinarizer()
         self._mlb.fit(self._ptb_xl_snomed_labels.values)
@@ -163,6 +156,14 @@ class PTBXLDataLoader(BaseDataLoader):
         self._12sl_snomed_labels_encoded = self._mlb.transform(
             self._12sl_snomed_labels.values
         )
+
+    def _split_data(self):
+        """
+        Splits the data into training, validation and test data using the folds from the PTB-XL dataset.
+        For the validation and test data, the PTB-XL SNOMED labels are just provided as labels.
+        For the training data, the PTB-XL SNOMED labels and the 12SL SNOMED labels are provided.
+        During the process the SNOMED labels will be encoded with a multi label binarizer.
+        """
 
         # split the data
         self.X_test = self._samples[self._folds == 10]

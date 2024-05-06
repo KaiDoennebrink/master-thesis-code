@@ -163,7 +163,6 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
 
         soft_label_propagation = self._propagate_soft_label(rbf_distances, knn_indices)
         # calculate the average label cardinality of each neighborhood
-        # TODO: Discuss whether to use a global label cardinality like the paper or a neighborhood specific.
         average_label_cardinality_of_neighborhood = np.ceil(
             np.sum(self._labeled_labels[knn_indices[:], :], axis=(1, 2)) / k
         ).astype(int)
@@ -197,10 +196,11 @@ class PredictedLabelVectorInconsistencyCrossEntropyStrategy:
             (self._num_unlabeled_samples, self._num_labels)
         )
         for i in range(self._num_unlabeled_samples):
-            soft_label_propagation[i, :] = np.sum(
-                rbf_distances[i, knn_indices[i]]
-                * self._labeled_labels[knn_indices[i], :].T,
-                axis=1,
+            soft_label_propagation[i, :] = (
+                np.sum(
+                    rbf_distances[i, knn_indices[i]] * self._labeled_labels[knn_indices[i], :].T,
+                    axis=1
+                )
             )
         return soft_label_propagation
 

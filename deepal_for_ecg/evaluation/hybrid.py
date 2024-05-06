@@ -98,12 +98,36 @@ def create_dataframe(data_dict: Dict, cost_factor_ha: float = 1, cost_factor_wsa
 
     return cost_df
 
+def auc_cost_plot(
+        plotting_df: pd.DataFrame,
+        result_value_to_use: str = "Macro AUC",
+        cost_value_to_use: str = "Cumulative costs",
+        time_value_to_use: str = "AL iteration",
+        figure_filename: str = "plots/annotator_auc_cost_plot.png",
+):
+    sns.set(style="whitegrid")
+    fig, axes = plt.subplots(ncols=2, figsize=(9, 4))
+    # auc part
+    sns.lineplot(plotting_df, y=result_value_to_use, x=time_value_to_use, hue="Annotator setting", errorbar=("ci", 95), ax=axes[0])
+    axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+    axes[0].set_xlim([0, 20])
+
+    # cost part
+    sns.lineplot(data=plotting_df, y=cost_value_to_use, x=time_value_to_use, hue="Annotator setting",
+                 errorbar=("ci", 95), ax=axes[1])
+    axes[1].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+    axes[1].set_xlim([0, 20])
+    y_bottom, y_top = axes[1].get_ylim()
+    axes[1].set_ylim([0, y_top])
+
+    fig.tight_layout()
+    fig.savefig(figure_filename, dpi=600)
 
 def cost_plot(
         plotting_df: pd.DataFrame,
         cost_value_to_use: str = "Cumulative costs",
         time_value_to_use: str = "AL iteration",
-        figure_filename: str = "annotator_cost_plot.png",
+        figure_filename: str = "plots/annotator_cost_plot.png",
         with_title: bool = True
 ):
     """
@@ -123,13 +147,13 @@ def cost_plot(
     sns.lineplot(data=plotting_df, y=cost_value_to_use, x=time_value_to_use, hue="Annotator setting", errorbar=("ci", 95))
     fig.axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
     fig.tight_layout()
-    fig.savefig(figure_filename)
+    fig.savefig(figure_filename, dpi=300)
 
 
 def auc_plot(
         plotting_df: pd.DataFrame,
         time_value_to_use: str = "AL iteration",
-        figure_filename: str = "annotator_auc_plot.png",
+        figure_filename: str = "plots/annotator_auc_plot.png",
         result_value_to_use: str = "Macro AUC",
         with_title: bool = True
 ):
@@ -150,12 +174,12 @@ def auc_plot(
     sns.lineplot(plotting_df, y=result_value_to_use, x=time_value_to_use, hue="Annotator setting", errorbar=("ci", 95))
     fig.axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
     fig.tight_layout()
-    fig.savefig(figure_filename)
+    fig.savefig(figure_filename, dpi=300)
 
 
 def samples_plot(
         plotting_df: pd.DataFrame,
-        figure_filename: str = "annotator_samples_plot.png",
+        figure_filename: str = "plots/annotator_samples_plot.png",
         with_title: bool = True
 ):
     """
@@ -167,7 +191,7 @@ def samples_plot(
         with_title (bool): Whether to add a title or not.
     """
     sns.set(style="whitegrid")
-    fig = plt.figure(figsize=(10, 6))
+    fig = plt.figure(figsize=(9, 4))
     if with_title:
         fig.suptitle("Number of samples from the different annotators over time in the hybrid setting")
 
@@ -179,5 +203,7 @@ def samples_plot(
     sns.lineplot(x="AL iteration", y="Number of samples", hue="Annotator",
                  data=prepared_plotting_df, palette=sns.color_palette()[1:3])
     fig.axes[0].xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 4, 5, 10]))
+    fig.axes[0].set_xlim([0, 20])
+    fig.axes[0].set_ylim([0, 300])
     fig.tight_layout()
-    fig.savefig(figure_filename)
+    fig.savefig(figure_filename, dpi=600)
